@@ -41,8 +41,9 @@ const tokenDecimals = {
 
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
-const PARASWAP_PROXY = "0x216B4B4Ba9F3e719726886d34a1774842785337C";
+import { ethers } from "ethers";
 
+const PARASWAP_PROXY = ethers.getAddress("0x216B4B4Ba9F3e719726886d34a1774842785337C");
 // استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
