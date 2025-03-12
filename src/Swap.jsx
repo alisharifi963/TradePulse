@@ -64,8 +64,23 @@ const tokenDecimals = {
   USDT: 6,
 };
 
+// نگاشت توکن‌ها به ID‌های CoinGecko برای گرفتن قیمت
+const tokenToCoinGeckoId = {
+  ETH: "ethereum",
+  USDC: "usd-coin",
+  DAI: "dai",
+  WBTC: "wrapped-bitcoin",
+  ARB: "arbitrum",
+  UNI: "uniswap",
+  LINK: "chainlink",
+  WETH: "weth",
+  GMX: "gmx",
+  USDT: "tether",
+};
+
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
+const coingeckoApiUrl = "https://api.coingecko.com/api/v3/simple/price";
 
 // استایل‌ها
 const AppContainer = styled.div`
@@ -120,10 +135,6 @@ const HeaderTitle = styled.div`
   display: flex;
   align-items: center;
   gap: 0.75rem;
-`;
-
-const HeartIcon = styled(motion.div)`
-  color: #3b82f6;
 `;
 
 const ConnectButton = styled(motion.button)`
@@ -364,6 +375,12 @@ const CloseButton = styled.button`
   margin-left: 1rem;
 `;
 
+const CenterHeartIcon = styled(motion.div)`
+  color: #3b82f6;
+  margin-top: 1rem; /* فاصله از دکمه سواپ */
+  pointer-events: none; /* جلوگیری از تداخل با کلیک */
+`;
+
 const switchToArbitrum = async (provider) => {
   try {
     await provider.request({
@@ -396,8 +413,8 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function Swap() {
   let abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("ETH"); // تغییر از LINK به ETH
-  const [tokenTo, setTokenTo] = useState("USDC"); // تغییر از ETH به USDC
+  const [tokenFrom, setTokenFrom] = useState("ETH");
+  const [tokenTo, setTokenTo] = useState("USDC");
   const [amountFrom, setAmountFrom] = useState("0.01");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
@@ -417,6 +434,35 @@ function Swap() {
   const [usdEquivalent, setUsdEquivalent] = useState("");
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
+  const [tokenPrices, setTokenPrices] = useState({}); // ذخیره قیمت‌ها از CoinGecko
+
+  // تابع برای گرفتن قیمت‌ها از CoinGecko
+  const fetchTokenPrices = async () => {
+    try {
+      const ids = Object.values(tokenToCoinGeckoId).join(",");
+      const response = await fetch(
+        `${coingeckoApiUrl}?ids=${ids}&vs_currencies=usd`
+      );
+      if (!response.ok) throw new Error("Failed to fetch prices from CoinGecko");
+      const data = await response.json();
+      setTokenPrices(data);
+    } catch (error) {
+      console.error("Error fetching prices from CoinGecko:", error);
+      // قیمت پیش‌فرض برای تست
+      setTokenPrices({
+        [tokenToCoinGeckoId["ETH"]]: { usd: 2500 }, // فرض می‌کنیم قیمت ETH حدود $2500 است
+        [tokenToCoinGeckoId["USDC"]]: { usd: 1 }, // USDC همیشه $1 است
+      });
+      setErrorMessage("Failed to fetch token prices. Using fallback rates.");
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 5000);
+    }
+  };
+
+  // گرفتن قیمت‌ها موقع لود شدن کامپوننت
+  useEffect(() => {
+    fetchTokenPrices();
+  }, []);
 
   // تابع برای گرفتن موجودی توکن‌ها
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
@@ -503,21 +549,28 @@ function Swap() {
       const data = await response.json();
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
+        const destAmount = ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]);
+        setAmountTo(destAmount);
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
         setIsPriceRouteReady(true);
 
-        // محاسبه معادل دلاری
+        // لاگ کردن مقادیر برای دیباگ
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-        const usdPrice = data.priceRoute.srcUSD;
-        if (usdPrice) {
-          const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
-          setUsdEquivalent(`≈ $${usdValue} USD`);
-        } else {
-          setUsdEquivalent("Price not available");
-        }
+        const srcAmount = Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom]));
+        const srcPriceUSDParaSwap = data.priceRoute.srcUSD;
+        console.log("Debug - fetchBestRate:", {
+          amountFrom,
+          srcAmount,
+          srcPriceUSDParaSwap,
+          usdValueParaSwap: srcAmount * srcPriceUSDParaSwap,
+        });
+
+        // محاسبه معادل دلاری با استفاده از CoinGecko به جای srcUSD
+        const srcPriceUSDCoinGecko = tokenPrices[tokenToCoinGeckoId[tokenFrom]]?.usd || 2500;
+        const usdValue = (srcAmount * srcPriceUSDCoinGecko).toFixed(2);
+        setUsdEquivalent(`≈ $${usdValue} USD`);
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
@@ -849,19 +902,13 @@ function Swap() {
     <>
       <GlobalStyle />
       <AppContainer>
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", inset: 0, pointer-events: "none" }}>
           <Particle />
           <ParticleBottom />
         </div>
 
         <Header>
           <HeaderTitle>
-            <HeartIcon
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 1 }}
-            >
-              <HeartPulse size={20} />
-            </HeartIcon>
             <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}>
               TradePulse Swap
             </h1>
@@ -961,6 +1008,14 @@ function Swap() {
                     ? "Swapping..."
                     : `Swap ${tokenFrom} to ${tokenTo}`}
                 </SwapButton>
+
+                {/* اضافه کردن قلب انیمیشنی زیر دکمه سواپ */}
+                <CenterHeartIcon
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1 }}
+                >
+                  <HeartPulse size={40} />
+                </CenterHeartIcon>
               </div>
             </CardContent>
           </Card>
