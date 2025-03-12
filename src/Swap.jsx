@@ -458,14 +458,9 @@ function Swap() {
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      if (!allowance) {
-        throw new Error("Allowance is undefined");
-      }
-
       if (allowance.lt(amount)) {
         const tx = await tokenContract.approve(PARASWAP_PROXY, amount);
         await tx.wait();
-        return true;
       }
       return true;
     } catch (error) {
@@ -557,11 +552,12 @@ function Swap() {
       const txValue = txParams.value
         ? ethers.getBigInt(txParams.value.toString())
         : 0n;
+      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 300000n;
       const tx = await signer.sendTransaction({
         to: txParams.to,
         data: txParams.data,
         value: txValue,
-        gasLimit: ethers.toBeHex(300000),
+        gasLimit,
       });
 
       await tx.wait();
