@@ -458,9 +458,11 @@ function Swap() {
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      const allowanceBN = ethers.parseUnits(allowance.toString(), tokenDecimals[tokenFrom]);
+      // تبدیل allowance به BigInt بدون استفاده از parseUnits
+      const allowanceBN = ethers.toBigInt(allowance.toString());
 
-      if (allowanceBN.lt(amountBN)) {
+      // مقایسه با BigInt
+      if (allowanceBN < amountBN) {
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
       }
