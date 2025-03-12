@@ -450,7 +450,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]); // amount رو به BigNumber تبدیل کردیم
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -458,8 +458,8 @@ function Swap() {
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      if (allowance.lt(amount)) {
-        const tx = await tokenContract.approve(PARASWAP_PROXY, amount);
+      if (allowance.lt(amountBN)) { // حالا هر دو BigNumber هستن
+        const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
       }
       return true;
