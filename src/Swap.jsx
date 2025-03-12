@@ -64,23 +64,8 @@ const tokenDecimals = {
   USDT: 6,
 };
 
-// نگاشت توکن‌ها به ID‌های CoinGecko برای گرفتن قیمت
-const tokenToCoinGeckoId = {
-  ETH: "ethereum",
-  USDC: "usd-coin",
-  DAI: "dai",
-  WBTC: "wrapped-bitcoin",
-  ARB: "arbitrum",
-  UNI: "uniswap",
-  LINK: "chainlink",
-  WETH: "weth",
-  GMX: "gmx",
-  USDT: "tether",
-};
-
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
-const coingeckoApiUrl = "https://api.coingecko.com/api/v3/simple/price";
 
 // استایل‌ها
 const AppContainer = styled.div`
@@ -411,8 +396,8 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function Swap() {
   let abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("ETH");
-  const [tokenTo, setTokenTo] = useState("USDC");
+  const [tokenFrom, setTokenFrom] = useState("ETH"); // تغییر از LINK به ETH
+  const [tokenTo, setTokenTo] = useState("USDC"); // تغییر از ETH به USDC
   const [amountFrom, setAmountFrom] = useState("0.01");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
@@ -432,35 +417,6 @@ function Swap() {
   const [usdEquivalent, setUsdEquivalent] = useState("");
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
-  const [tokenPrices, setTokenPrices] = useState({}); // ذخیره قیمت‌ها از CoinGecko
-
-  // تابع برای گرفتن قیمت‌ها از CoinGecko
-  const fetchTokenPrices = async () => {
-    try {
-      const ids = Object.values(tokenToCoinGeckoId).join(",");
-      const response = await fetch(
-        `${coingeckoApiUrl}?ids=${ids}&vs_currencies=usd`
-      );
-      if (!response.ok) throw new Error("Failed to fetch prices from CoinGecko");
-      const data = await response.json();
-      setTokenPrices(data);
-    } catch (error) {
-      console.error("Error fetching prices from CoinGecko:", error);
-      // قیمت پیش‌فرض برای تست
-      setTokenPrices({
-        [tokenToCoinGeckoId["ETH"]]: { usd: 2500 }, // فرض می‌کنیم قیمت ETH حدود $2500 است
-        [tokenToCoinGeckoId["USDC"]]: { usd: 1 }, // USDC همیشه $1 است
-      });
-      setErrorMessage("Failed to fetch token prices. Using fallback rates.");
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
-    }
-  };
-
-  // گرفتن قیمت‌ها موقع لود شدن کامپوننت
-  useEffect(() => {
-    fetchTokenPrices();
-  }, []);
 
   // تابع برای گرفتن موجودی توکن‌ها
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
@@ -547,39 +503,20 @@ function Swap() {
       const data = await response.json();
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        const destAmount = ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]);
-        setAmountTo(destAmount);
+        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
         setIsPriceRouteReady(true);
 
-        // محاسبه معادل دلاری با استفاده از CoinGecko
-        const srcAmount = parseFloat(amountFrom); // مقدار واردشده به صورت اعشاری
-        const srcPriceUSD = tokenPrices[tokenToCoinGeckoId[tokenFrom]]?.usd || 2500; // قیمت ETH از CoinGecko
-        console.log("Debug - fetchBestRate:", {
-          amountFrom,
-          srcAmount,
-          srcPriceUSD,
-          usdValue: srcAmount * srcPriceUSD,
-        });
-        const usdValue = (srcAmount * srcPriceUSD).toFixed(2);
-        setUsdEquivalent(`≈ $${usdValue} USD`);
-
-        // اعتبارسنجی نرخ تبدیل
-        const destPriceUSD = tokenPrices[tokenToCoinGeckoId[tokenTo]]?.usd || 1; // فرض می‌کنیم USDC همیشه $1 است
-        const expectedDestAmount = (srcAmount * srcPriceUSD) / destPriceUSD;
-        const actualDestAmount = parseFloat(destAmount);
-        const tolerance = 0.1; // 10% تحمل برای اختلاف (به خاطر کارمزد و اسلیپیج)
-        if (
-          Math.abs(expectedDestAmount - actualDestAmount) / expectedDestAmount > tolerance
-        ) {
-          console.warn(
-            `Rate mismatch! Expected ${expectedDestAmount} ${tokenTo}, but got ${actualDestAmount} ${tokenTo}`
-          );
-          setErrorMessage("Rate mismatch detected. Please try again or check the API.");
-          setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 5000);
+        // محاسبه معادل دلاری
+        const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+        const usdPrice = data.priceRoute.srcUSD;
+        if (usdPrice) {
+          const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
+          setUsdEquivalent(`≈ $${usdValue} USD`);
+        } else {
+          setUsdEquivalent("Price not available");
         }
       } else {
         setAmountTo("0.000000");
@@ -951,7 +888,6 @@ function Swap() {
                     value={amountFrom}
                     onChange={(e) => setAmountFrom(e.target.value || "")}
                     min="0.01"
-                    step="0.01" // اضافه کردن step برای جلوگیری از مقادیر نامنظم
                   />
                   <TokenButtonContainer>
                     <TokenButton onClick={() => openModal(true)}>
@@ -1004,7 +940,7 @@ function Swap() {
                     <Input
                       type="text"
                       value={customTokenAddress}
-                      onChange={(e) => setAmountFrom(e.target.value)}
+                      onChange={(e) => setCustomTokenAddress(e.target.value)}
                       placeholder="Search token by contract address"
                     />
                     <button onClick={searchToken}>Search</button>
