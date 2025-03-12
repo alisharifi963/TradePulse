@@ -41,7 +41,7 @@ const tokenAddresses = {
   USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
   WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
-  ARB: "0x912CE59144191C1204E64559FE8253a0 liegt49E6548",
+  ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
   UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
   LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
   WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
@@ -396,7 +396,7 @@ function Swap() {
 
   const fetchBestRate = async () => {
     try {
-      const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
+      const amount = ethers.utils.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -428,7 +428,7 @@ function Swap() {
       const data = await response.json();
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
+        setAmountTo(ethers.utils.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
@@ -449,13 +449,8 @@ function Swap() {
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") return true;
 
     try {
-      // چک کردن اینکه signer و provider موجود باشن
-      if (!signer || !provider) {
-        throw new Error("Wallet is not connected or signer/provider is not initialized.");
-      }
-
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+      const amountBN = ethers.utils.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -463,18 +458,11 @@ function Swap() {
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      if (allowance === undefined || allowance === null) {
-        throw new Error("Allowance is undefined. Check token address or network connection.");
-      }
+      const allowanceBN = ethers.utils.parseUnits(allowance.toString(), tokenDecimals[tokenFrom]);
 
-      const allowanceBN = ethers.BigNumber.from(allowance);
       if (allowanceBN.lt(amountBN)) {
-        console.log("Allowance کافی نیست، Approve انجام می‌شه...");
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
-        console.log("Approve با موفقیت انجام شد!");
-      } else {
-        console.log("Allowance کافی هست، نیازی به Approve نیست.");
       }
       return true;
     } catch (error) {
@@ -498,7 +486,7 @@ function Swap() {
       const txData = {
         srcToken,
         destToken,
-        srcAmount: ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString(),
+        srcAmount: ethers.utils.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString(),
         destAmount: priceRoute.destAmount.toString(),
         priceRoute,
         userAddress: address,
