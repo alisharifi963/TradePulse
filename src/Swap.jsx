@@ -64,7 +64,7 @@ const tokenDecimals = {
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
-// استایل‌ها
+// استایل‌ها (همون قبلی‌ها)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -468,7 +468,7 @@ function Swap() {
       }
     } catch (error) {
       console.error("Error fetching rate:", error);
-      setAmountTo(""); // فقط مقدار خالی ست می‌کنیم
+      setAmountTo("");
       setBestDex("Error fetching rate");
       alert(`Error fetching rate: ${error.message}`);
     }
@@ -532,6 +532,11 @@ function Swap() {
         );
       }
 
+      // مطمئن می‌شیم responseData یه شیء معتبر با کلیدهای لازم داره
+      if (!responseData.to || !responseData.data) {
+        throw new Error("Invalid transaction data from API");
+      }
+
       return responseData;
     } catch (error) {
       console.error("Error building transaction:", error);
@@ -550,6 +555,13 @@ function Swap() {
       return;
     }
 
+    if (!amountFrom || Number(amountFrom) <= 0) {
+      setErrorMessage("Please enter a valid amount to swap!");
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 5000);
+      return;
+    }
+
     setIsSwapping(true);
     try {
       const network = await provider.getNetwork();
@@ -560,10 +572,8 @@ function Swap() {
       await checkAndApproveToken();
       const txParams = await buildTransaction();
 
-      if (!txParams || txParams.error) {
-        throw new Error(
-          `Transaction build failed: ${txParams?.error || "Unknown error"}`
-        );
+      if (!txParams || !txParams.to || !txParams.data) {
+        throw new Error("Invalid transaction parameters");
       }
 
       const txValue = txParams.value
@@ -756,7 +766,7 @@ function Swap() {
                 <SwapTokensContainer>
                   <SwapTokensButton
                     onClick={swapTokens}
-                    whileHover={{ scale: 1.05}}
+                    whileHover={{ scale: 1.05 }}
                   >
                     <ArrowLeftRight size={24} />
                   </SwapTokensButton>
