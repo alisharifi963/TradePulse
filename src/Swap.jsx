@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 
-// استایل Global برای حذف margin و padding پیش‌فرض
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -24,10 +23,8 @@ const GlobalStyle = createGlobalStyle`
   }
 `;
 
-// تعریف آدرس با checksum درست
 const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
 
-// ERC-20 ABI
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -36,7 +33,6 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// آدرس توکن‌ها در Arbitrum
 const tokenAddresses = {
   ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
   USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -50,7 +46,6 @@ const tokenAddresses = {
   USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
 };
 
-// تعداد اعشار هر توکن
 const tokenDecimals = {
   ETH: 18,
   USDC: 6,
@@ -64,10 +59,23 @@ const tokenDecimals = {
   USDT: 6,
 };
 
+const tokenToCoinGeckoId = {
+  ETH: "ethereum",
+  USDC: "usd-coin",
+  DAI: "dai",
+  WBTC: "wrapped-bitcoin",
+  ARB: "arbitrum",
+  UNI: "uniswap",
+  LINK: "chainlink",
+  WETH: "weth",
+  GMX: "gmx",
+  USDT: "tether",
+};
+
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
+const coingeckoApiUrl = "https://api.coingecko.com/api/v3/simple/price";
 
-// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -364,6 +372,12 @@ const CloseButton = styled.button`
   margin-left: 1rem;
 `;
 
+const CenterHeartIcon = styled(motion.div)`
+  color: #3b82f6;
+  margin-top: 1rem;
+  pointer-events: none;
+`;
+
 const switchToArbitrum = async (provider) => {
   try {
     await provider.request({
@@ -390,14 +404,13 @@ const switchToArbitrum = async (provider) => {
   }
 };
 
-// تابع برای ایجاد تأخیر
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function Swap() {
   let abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("ETH"); // تغییر از LINK به ETH
-  const [tokenTo, setTokenTo] = useState("USDC"); // تغییر از ETH به USDC
+  const [tokenFrom, setTokenFrom] = useState("ETH");
+  const [tokenTo, setTokenTo] = useState("USDC");
   const [amountFrom, setAmountFrom] = useState("0.01");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
@@ -417,18 +430,41 @@ function Swap() {
   const [usdEquivalent, setUsdEquivalent] = useState("");
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
+  const [tokenPrices, setTokenPrices] = useState({});
 
-  // تابع برای گرفتن موجودی توکن‌ها
+  const fetchTokenPrices = async () => {
+    try {
+      const ids = Object.values(tokenToCoinGeckoId).join(",");
+      const response = await fetch(
+        `${coingeckoApiUrl}?ids=${ids}&vs_currencies=usd`
+      );
+      if (!response.ok) throw new Error("Failed to fetch prices from CoinGecko");
+      const data = await response.json();
+      setTokenPrices(data);
+    } catch (error) {
+      console.error("Error fetching prices from CoinGecko:", error);
+      setTokenPrices({
+        [tokenToCoinGeckoId["ETH"]]: { usd: 2500 },
+        [tokenToCoinGeckoId["USDC"]]: { usd: 1 },
+      });
+      setErrorMessage("Failed to fetch token prices. Using fallback rates.");
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 5000);
+    }
+  };
+
+  useEffect(() => {
+    fetchTokenPrices();
+  }, []);
+
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
     try {
       const tokenAddress = tokenAddresses[tokenSymbol];
       let balance;
       if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-        // برای ETH
         balance = await provider.getBalance(userAddress);
       } else {
-        // برای توکن‌های ERC-20
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         balance = await tokenContract.balanceOf(userAddress);
       }
@@ -439,7 +475,6 @@ function Swap() {
     }
   };
 
-  // به‌روزرسانی موجودی‌ها موقع اتصال والت یا تغییر توکن
   useEffect(() => {
     const updateBalances = async () => {
       if (isConnected && address && provider) {
@@ -489,7 +524,7 @@ function Swap() {
         const parsedError = JSON.parse(errorText);
 
         if (parsedError.error === "ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT") {
-          alert(`⚠️ Price impact too high! Reduce the amount.`);
+          alert("Price impact too high! Reduce the amount.");
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
           setPriceRoute(null);
@@ -503,21 +538,18 @@ function Swap() {
       const data = await response.json();
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
+        const destAmount = ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]);
+        setAmountTo(destAmount);
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
         setIsPriceRouteReady(true);
 
-        // محاسبه معادل دلاری
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-        const usdPrice = data.priceRoute.srcUSD;
-        if (usdPrice) {
-          const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
-          setUsdEquivalent(`≈ $${usdValue} USD`);
-        } else {
-          setUsdEquivalent("Price not available");
-        }
+        const srcAmount = Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom]));
+        const srcPriceUSDCoinGecko = tokenPrices[tokenToCoinGeckoId[tokenFrom]]?.usd || 2500;
+        const usdValue = (srcAmount * srcPriceUSDCoinGecko).toFixed(2);
+        setUsdEquivalent(`$${usdValue} USD`);
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
@@ -551,7 +583,6 @@ function Swap() {
         await switchToArbitrum(window.ethereum);
       }
 
-      // چک کردن مقدار فعلی allowance
       let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
@@ -564,11 +595,9 @@ function Swap() {
         const receipt = await tx.wait();
         console.log("Approval confirmed on-chain:", receipt.transactionHash);
 
-        // تأخیر 10 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
         console.log("Waiting for blockchain to update allowance...");
         await delay(10000);
 
-        // چک کردن دوباره allowance بعد از تأخیر
         allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
         console.log("Updated Allowance after approval:", allowanceBN.toString());
@@ -838,7 +867,6 @@ function Swap() {
     setUsdEquivalent("");
   };
 
-  // تنظیم مقدار amountFrom به کل موجودی
   const setMaxAmountFrom = () => {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) {
       setAmountFrom(tokenFromBalance);
@@ -933,7 +961,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
+                <UsdEquivalent>USD equivalent placeholder</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
@@ -961,6 +989,13 @@ function Swap() {
                     ? "Swapping..."
                     : `Swap ${tokenFrom} to ${tokenTo}`}
                 </SwapButton>
+
+                <CenterHeartIcon
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1 }}
+                >
+                  <HeartPulse size={40} />
+                </CenterHeartIcon>
               </div>
             </CardContent>
           </Card>
