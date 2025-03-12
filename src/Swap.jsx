@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ChevronDown, X, HeartPulse, ArrowLeftRight } from "lucide-react";
+import { ChevronDown, X, HeartPulse, ArrowLeftRight, Wallet } from "lucide-react";
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
@@ -31,6 +31,7 @@ const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278b
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
+  "function balanceOf(address owner) public view returns (uint256)",
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
 ];
@@ -194,6 +195,13 @@ const Input = styled.input`
   font-size: 1.125rem;
 `;
 
+const TokenButtonContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+`;
+
 const TokenButton = styled.button`
   display: flex;
   align-items: center;
@@ -202,9 +210,18 @@ const TokenButton = styled.button`
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
-  margin-left: 0.5rem;
   transition: background 0.3s;
   &:hover { background: #4338ca; }
+`;
+
+const BalanceContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  cursor: pointer;
+  &:hover { color: #3b82f6; }
 `;
 
 const SwapTokensContainer = styled.div`
@@ -397,7 +414,43 @@ function Swap() {
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [usdEquivalent, setUsdEquivalent] = useState(""); // حالت جدید برای معادل دلاری
+  const [usdEquivalent, setUsdEquivalent] = useState("");
+  const [tokenFromBalance, setTokenFromBalance] = useState("0"); // موجودی توکن From
+  const [tokenToBalance, setTokenToBalance] = useState("0"); // موجودی توکن To
+
+  // تابع برای گرفتن موجودی توکن‌ها
+  const fetchTokenBalance = async (tokenSymbol, userAddress) => {
+    if (!userAddress || !provider) return "0";
+    try {
+      const tokenAddress = tokenAddresses[tokenSymbol];
+      let balance;
+      if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
+        // برای ETH
+        balance = await provider.getBalance(userAddress);
+      } else {
+        // برای توکن‌های ERC-20
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+        balance = await tokenContract.balanceOf(userAddress);
+      }
+      return ethers.formatUnits(balance, tokenDecimals[tokenSymbol]);
+    } catch (error) {
+      console.error(`Error fetching balance for ${tokenSymbol}:`, error);
+      return "0";
+    }
+  };
+
+  // به‌روزرسانی موجودی‌ها موقع اتصال والت یا تغییر توکن
+  useEffect(() => {
+    const updateBalances = async () => {
+      if (isConnected && address && provider) {
+        const fromBalance = await fetchTokenBalance(tokenFrom, address);
+        const toBalance = await fetchTokenBalance(tokenTo, address);
+        setTokenFromBalance(fromBalance);
+        setTokenToBalance(toBalance);
+      }
+    };
+    updateBalances();
+  }, [isConnected, address, provider, tokenFrom, tokenTo]);
 
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
@@ -407,7 +460,7 @@ function Swap() {
       setBestDex("Enter a valid amount greater than 0");
       setPriceRoute(null);
       setIsPriceRouteReady(false);
-      setUsdEquivalent(""); // ریست معادل دلاری
+      setUsdEquivalent("");
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
@@ -458,7 +511,7 @@ function Swap() {
 
         // محاسبه معادل دلاری
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-        const usdPrice = data.priceRoute.srcUSD; // قیمت توکن منبع به دلار (بسته به API ParaSwap)
+        const usdPrice = data.priceRoute.srcUSD;
         if (usdPrice) {
           const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
           setUsdEquivalent(`≈ $${usdValue} USD`);
@@ -719,6 +772,8 @@ function Swap() {
     setIsConnected(false);
     setProvider(null);
     setSigner(null);
+    setTokenFromBalance("0");
+    setTokenToBalance("0");
   };
 
   const searchToken = async () => {
@@ -780,7 +835,14 @@ function Swap() {
     setAmountFrom("");
     setAmountTo("");
     setBestDex("Fetching...");
-    setUsdEquivalent(""); // ریست معادل دلاری موقع سواپ توکن‌ها
+    setUsdEquivalent("");
+  };
+
+  // تنظیم مقدار amountFrom به کل موجودی
+  const setMaxAmountFrom = () => {
+    if (tokenFromBalance && Number(tokenFromBalance) > 0) {
+      setAmountFrom(tokenFromBalance);
+    }
   };
 
   return (
@@ -827,12 +889,20 @@ function Swap() {
                     onChange={(e) => setAmountFrom(e.target.value || "")}
                     min="0.01"
                   />
-                  <TokenButton onClick={() => openModal(true)}>
-                    <span>{tokenFrom}</span>
-                    <ChevronDown size={16} />
-                  </TokenButton>
+                  <TokenButtonContainer>
+                    <TokenButton onClick={() => openModal(true)}>
+                      <span>{tokenFrom}</span>
+                      <ChevronDown size={16} />
+                    </TokenButton>
+                    {isConnected && (
+                      <BalanceContainer onClick={setMaxAmountFrom}>
+                        <Wallet size={14} />
+                        <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
+                      </BalanceContainer>
+                    )}
+                  </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{usdEquivalent}</UsdEquivalent> {/* نمایش معادل دلاری */}
+                <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
                 <SwapTokensContainer>
                   <SwapTokensButton
@@ -850,10 +920,18 @@ function Swap() {
                     value={amountTo}
                     readOnly
                   />
-                  <TokenButton onClick={() => openModal(false)}>
-                    <span>{tokenTo}</span>
-                    <ChevronDown size={16} />
-                  </TokenButton>
+                  <TokenButtonContainer>
+                    <TokenButton onClick={() => openModal(false)}>
+                      <span>{tokenTo}</span>
+                      <ChevronDown size={16} />
+                    </TokenButton>
+                    {isConnected && (
+                      <BalanceContainer>
+                        <Wallet size={14} />
+                        <span>{parseFloat(tokenToBalance).toFixed(4)}</span>
+                      </BalanceContainer>
+                    )}
+                  </TokenButtonContainer>
                 </InputContainer>
                 <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
 
