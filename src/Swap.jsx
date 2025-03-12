@@ -364,6 +364,9 @@ const switchToArbitrum = async (provider) => {
   }
 };
 
+// تابع برای ایجاد تأخیر
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function Swap() {
   let abortController = new AbortController();
 
@@ -377,6 +380,7 @@ function Swap() {
   const [isConnected, setIsConnected] = useState(false);
   const [address, setAddress] = useState("");
   const [priceRoute, setPriceRoute] = useState(null);
+  const [isPriceRouteReady, setIsPriceRouteReady] = useState(false); // حالت جدید برای اطمینان از آماده بودن priceRoute
   const [isSwapping, setIsSwapping] = useState(false);
   const [customTokenAddress, setCustomTokenAddress] = useState("");
   const [customTokens, setCustomTokens] = useState([]);
@@ -391,15 +395,19 @@ function Swap() {
     } else if (amountFrom && Number(amountFrom) <= 0) {
       setAmountTo("");
       setBestDex("Enter a valid amount greater than 0");
+      setPriceRoute(null);
+      setIsPriceRouteReady(false);
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
   const fetchBestRate = async () => {
     try {
+      setIsPriceRouteReady(false); // غیرفعال کردن تا زمانی که priceRoute جدید آماده بشه
       const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
+        setPriceRoute(null);
         return;
       }
 
@@ -419,6 +427,7 @@ function Swap() {
           alert(`⚠️ Price impact too high! Reduce the amount.`);
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
+          setPriceRoute(null);
           return;
         }
 
@@ -432,14 +441,17 @@ function Swap() {
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
+        setIsPriceRouteReady(true); // فعال کردن بعد از دریافت priceRoute
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
+        setPriceRoute(null);
       }
     } catch (error) {
       console.error("Error fetching rate:", error);
       setAmountTo("");
       setBestDex("Error fetching rate");
+      setPriceRoute(null);
       alert(`Error fetching rate: ${error.message}`);
     }
   };
@@ -472,6 +484,10 @@ function Swap() {
         console.log("Approval transaction sent:", tx.hash);
         const receipt = await tx.wait();
         console.log("Approval confirmed on-chain:", receipt.transactionHash);
+
+        // تأخیر 2 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
+        console.log("Waiting for blockchain to update allowance...");
+        await delay(2000);
       } else {
         console.log("Sufficient allowance, no approval needed.");
       }
@@ -494,10 +510,11 @@ function Swap() {
       const srcToken = tokenAddresses[tokenFrom];
       const destToken = tokenAddresses[tokenTo];
 
+      const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString();
       const txData = {
         srcToken,
         destToken,
-        srcAmount: ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString(),
+        srcAmount,
         destAmount: priceRoute.destAmount.toString(),
         priceRoute,
         userAddress: address,
@@ -553,6 +570,13 @@ function Swap() {
       return;
     }
 
+    if (!isPriceRouteReady) {
+      setErrorMessage("Price route not ready. Please wait or try again.");
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 5000);
+      return;
+    }
+
     setIsSwapping(true);
     try {
       const network = await provider.getNetwork();
@@ -568,6 +592,13 @@ function Swap() {
       }
       console.log("Token approval completed successfully.");
 
+      // به‌روزرسانی priceRoute قبل از ساخت تراکنش
+      console.log("Refreshing price route before building transaction...");
+      await fetchBestRate();
+      if (!isPriceRouteReady) {
+        throw new Error("Failed to refresh price route. Please try again.");
+      }
+
       console.log("Building swap transaction...");
       const txParams = await buildTransaction();
       console.log("Transaction parameters:", txParams);
@@ -579,7 +610,7 @@ function Swap() {
       const txValue = txParams.value
         ? ethers.getBigInt(txParams.value.toString())
         : 0n;
-      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 300000n;
+      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 500000n; // افزایش گس برای اطمینان
 
       console.log("Sending swap transaction...");
       const tx = await signer.sendTransaction({
@@ -807,7 +838,7 @@ function Swap() {
 
                 <SwapButton
                   onClick={handleSwap}
-                  disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0}
+                  disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
