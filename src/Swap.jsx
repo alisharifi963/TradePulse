@@ -379,12 +379,6 @@ const CloseButton = styled.button`
   margin-left: 1rem;
 `;
 
-const CenterHeartIcon = styled(motion.div)`
-  color: #3b82f6;
-  margin-top: 1rem; /* فاصله از دکمه سواپ */
-  pointer-events: none; /* جلوگیری از تداخل با کلیک */
-`;
-
 const switchToArbitrum = async (provider) => {
   try {
     await provider.request({
@@ -452,7 +446,7 @@ function Swap() {
       setTokenPrices(data);
     } catch (error) {
       console.error("Error fetching prices from CoinGecko:", error);
-      // قیمت پیش‌فرض برای تست
+      // قیمت پیش‌فرض برای ETH (برای تست)
       setTokenPrices({
         [tokenToCoinGeckoId["ETH"]]: { usd: 2500 }, // فرض می‌کنیم قیمت ETH حدود $2500 است
         [tokenToCoinGeckoId["USDC"]]: { usd: 1 }, // USDC همیشه $1 است
@@ -560,21 +554,32 @@ function Swap() {
         );
         setIsPriceRouteReady(true);
 
-        // لاگ کردن مقادیر برای دیباگ
+        // محاسبه معادل دلاری با استفاده از CoinGecko
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
         const srcAmount = Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom]));
-        const srcPriceUSDParaSwap = data.priceRoute.srcUSD;
-        console.log("Debug - fetchBestRate:", {
-          amountFrom,
-          srcAmount,
-          srcPriceUSDParaSwap,
-          usdValueParaSwap: srcAmount * srcPriceUSDParaSwap,
-        });
+        const srcPriceUSD = tokenPrices[tokenToCoinGeckoId[tokenFrom]]?.usd;
+        if (srcPriceUSD) {
+          const usdValue = (srcAmount * srcPriceUSD).toFixed(2);
+          setUsdEquivalent(`≈ $${usdValue} USD`);
 
-        // محاسبه معادل دلاری با استفاده از CoinGecko به جای srcUSD
-        const srcPriceUSDCoinGecko = tokenPrices[tokenToCoinGeckoId[tokenFrom]]?.usd || 2500;
-        const usdValue = (srcAmount * srcPriceUSDCoinGecko).toFixed(2);
-        setUsdEquivalent(`≈ $${usdValue} USD`);
+          // اعتبارسنجی نرخ تبدیل
+          const destPriceUSD = tokenPrices[tokenToCoinGeckoId[tokenTo]]?.usd || 1; // فرض می‌کنیم USDC همیشه $1 است
+          const expectedDestAmount = (srcAmount * srcPriceUSD) / destPriceUSD;
+          const actualDestAmount = parseFloat(destAmount);
+          const tolerance = 0.1; // 10% تحمل برای اختلاف (به خاطر کارمزد و اسلیپیج)
+          if (
+            Math.abs(expectedDestAmount - actualDestAmount) / expectedDestAmount > tolerance
+          ) {
+            console.warn(
+              `Rate mismatch! Expected ${expectedDestAmount} ${tokenTo}, but got ${actualDestAmount} ${tokenTo}`
+            );
+            setErrorMessage("Rate mismatch detected. Please try again or check the API.");
+            setIsNotificationVisible(true);
+            setTimeout(() => setIsNotificationVisible(false), 5000);
+          }
+        } else {
+          setUsdEquivalent("Price not available");
+        }
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
@@ -895,7 +900,7 @@ function Swap() {
     setUsdEquivalent("");
   };
 
-  // تنظیم مقدار amountFrom به کل موجودی (خط 856)
+  // تنظیم مقدار amountFrom به کل موجودی
   const setMaxAmountFrom = () => {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) {
       setAmountFrom(tokenFromBalance);
@@ -990,7 +995,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌توانید بعداً اضافه کنید */}</UsdEquivalent>
+                <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
@@ -1018,14 +1023,6 @@ function Swap() {
                     ? "Swapping..."
                     : `Swap ${tokenFrom} to ${tokenTo}`}
                 </SwapButton>
-
-                {/* اضافه کردن قلب انیمیشنی زیر دکمه سواپ */}
-                <CenterHeartIcon
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ repeat: Infinity, duration: 1 }}
-                >
-                  <HeartPulse size={40} />
-                </CenterHeartIcon>
               </div>
             </CardContent>
           </Card>
