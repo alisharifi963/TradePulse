@@ -137,6 +137,10 @@ const HeaderTitle = styled.div`
   gap: 0.75rem;
 `;
 
+const HeartIcon = styled(motion.div)`
+  color: #3b82f6;
+`;
+
 const ConnectButton = styled(motion.button)`
   background: #10b981;
   color: white;
@@ -909,6 +913,12 @@ function Swap() {
 
         <Header>
           <HeaderTitle>
+            <HeartIcon
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
+              <HeartPulse size={20} />
+            </HeartIcon>
             <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}>
               TradePulse Swap
             </h1>
