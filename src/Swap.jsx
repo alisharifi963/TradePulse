@@ -397,9 +397,9 @@ const switchToArbitrum = async (provider) => {
 function Swap() {
   let abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("ETH");
-  const [tokenTo, setTokenTo] = useState("USDC");
-  const [amountFrom, setAmountFrom] = useState("2");
+  const [tokenFrom, setTokenFrom] = useState("LINK");
+  const [tokenTo, setTokenTo] = useState("ETH");
+  const [amountFrom, setAmountFrom] = useState("0.01"); // مقدار پیش‌فرض تغییر کرد
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -416,19 +416,27 @@ function Swap() {
   const [signer, setSigner] = useState(null);
 
   useEffect(() => {
-    if (amountFrom && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
+    if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
+    } else if (amountFrom && Number(amountFrom) <= 0) {
+      setAmountTo("");
+      setBestDex("Enter a valid amount greater than 0");
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
   const fetchBestRate = async () => {
     try {
+      const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
+      if (Number(amountFrom) <= 0) {
+        setAmountTo("");
+        setBestDex("Enter a valid amount greater than 0");
+        return;
+      }
+
       const response = await fetch(
         `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${
           tokenAddresses[tokenTo]
-        }&amount=${ethers
-          .parseUnits(amountFrom, tokenDecimals[tokenFrom])
-          .toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${
+        }&amount=${amount}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${
           tokenDecimals[tokenTo]
         }&side=SELL&network=42161`
       );
@@ -444,20 +452,15 @@ function Swap() {
           return;
         }
 
-        throw new Error(
-          `API responded with status ${response.status}: ${errorText}`
-        );
+        throw new Error(`API responded with status ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        setAmountTo(
-          ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo])
-        );
+        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
         setBestDex(
-          data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange ||
-            "ParaSwap"
+          data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
       } else {
         setAmountTo("0.000000");
@@ -465,25 +468,17 @@ function Swap() {
       }
     } catch (error) {
       console.error("Error fetching rate:", error);
+      setAmountTo(""); // فقط مقدار خالی ست می‌کنیم
+      setBestDex("Error fetching rate");
       alert(`Error fetching rate: ${error.message}`);
-      setAmountTo("Error");
-      setBestDex("Error");
     }
   };
 
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[tokenFrom];
-    if (
-      !srcTokenAddress ||
-      srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-    )
-      return true;
+    if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") return true;
 
-    const tokenContract = new ethers.Contract(
-      srcTokenAddress,
-      ERC20_ABI,
-      signer
-    );
+    const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
     const amount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
     const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
 
@@ -505,9 +500,7 @@ function Swap() {
 
   const buildTransaction = async () => {
     if (!priceRoute || !isConnected) {
-      throw new Error(
-        "Cannot build transaction: priceRoute or wallet connection missing"
-      );
+      throw new Error("Cannot build transaction: priceRoute or wallet connection missing");
     }
 
     try {
@@ -517,9 +510,7 @@ function Swap() {
       const txData = {
         srcToken,
         destToken,
-        srcAmount: ethers
-          .parseUnits(amountFrom, tokenDecimals[tokenFrom])
-          .toString(),
+        srcAmount: ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString(),
         destAmount: priceRoute.destAmount.toString(),
         priceRoute,
         userAddress: address,
@@ -561,6 +552,11 @@ function Swap() {
 
     setIsSwapping(true);
     try {
+      const network = await provider.getNetwork();
+      if (network.chainId !== 42161n) {
+        await switchToArbitrum(window.ethereum);
+      }
+
       await checkAndApproveToken();
       const txParams = await buildTransaction();
 
@@ -748,7 +744,8 @@ function Swap() {
                     type="number"
                     placeholder="Amount to sell"
                     value={amountFrom}
-                    onChange={(e) => setAmountFrom(e.target.value)}
+                    onChange={(e) => setAmountFrom(e.target.value || "")}
+                    min="0.01" // حداقل مقدار معتبر
                   />
                   <TokenButton onClick={() => openModal(true)}>
                     <span>{tokenFrom}</span>
@@ -759,7 +756,7 @@ function Swap() {
                 <SwapTokensContainer>
                   <SwapTokensButton
                     onClick={swapTokens}
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.05}}
                   >
                     <ArrowLeftRight size={24} />
                   </SwapTokensButton>
@@ -797,7 +794,7 @@ function Swap() {
 
                 <SwapButton
                   onClick={handleSwap}
-                  disabled={isSwapping}
+                  disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
