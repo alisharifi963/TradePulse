@@ -446,7 +446,10 @@ function Swap() {
 
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[tokenFrom];
-    if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") return true;
+    if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
+      console.log("No approval needed for native token (ETH).");
+      return true;
+    }
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
@@ -454,17 +457,23 @@ function Swap() {
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
+        console.log("Switching to Arbitrum network...");
         await switchToArbitrum(window.ethereum);
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      // تبدیل allowance به BigInt بدون استفاده از parseUnits
       const allowanceBN = ethers.toBigInt(allowance.toString());
 
-      // مقایسه با BigInt
+      console.log("Allowance:", allowanceBN.toString(), "Amount needed:", amountBN.toString());
+
       if (allowanceBN < amountBN) {
+        console.log("Insufficient allowance, approving...");
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
-        await tx.wait();
+        console.log("Approval transaction sent:", tx.hash);
+        const receipt = await tx.wait();
+        console.log("Approval confirmed on-chain:", receipt.transactionHash);
+      } else {
+        console.log("Sufficient allowance, no approval needed.");
       }
       return true;
     } catch (error) {
@@ -494,6 +503,8 @@ function Swap() {
         userAddress: address,
       };
 
+      console.log("Building transaction with data:", txData);
+
       const response = await fetch(`${apiUrl}/transactions/42161`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -503,6 +514,7 @@ function Swap() {
       const responseData = await response.json();
 
       if (!response.ok) {
+        console.error("Transaction build failed:", responseData);
         throw new Error(
           `Transaction build failed with status ${response.status}: ${
             responseData.error || "Unknown error"
@@ -511,13 +523,15 @@ function Swap() {
       }
 
       if (!responseData.to || !responseData.data) {
+        console.error("Invalid transaction data:", responseData);
         throw new Error("Invalid transaction data from API");
       }
 
+      console.log("Transaction data received:", responseData);
       return responseData;
     } catch (error) {
       console.error("Error building transaction:", error);
-      setErrorMessage(`Transaction failed: ${error.message}`);
+      setErrorMessage(`Transaction build failed: ${error.message}`);
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 5000);
       throw error;
@@ -543,11 +557,20 @@ function Swap() {
     try {
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
+        console.log("Switching to Arbitrum network...");
         await switchToArbitrum(window.ethereum);
       }
 
-      await checkAndApproveToken();
+      console.log("Starting token approval...");
+      const approvalSuccess = await checkAndApproveToken();
+      if (!approvalSuccess) {
+        throw new Error("Token approval did not complete successfully.");
+      }
+      console.log("Token approval completed successfully.");
+
+      console.log("Building swap transaction...");
       const txParams = await buildTransaction();
+      console.log("Transaction parameters:", txParams);
 
       if (!txParams || !txParams.to || !txParams.data) {
         throw new Error("Invalid transaction parameters");
@@ -557,6 +580,8 @@ function Swap() {
         ? ethers.getBigInt(txParams.value.toString())
         : 0n;
       const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 300000n;
+
+      console.log("Sending swap transaction...");
       const tx = await signer.sendTransaction({
         to: txParams.to,
         data: txParams.data,
@@ -564,7 +589,10 @@ function Swap() {
         gasLimit,
       });
 
-      await tx.wait();
+      console.log("Swap transaction sent:", tx.hash);
+      const receipt = await tx.wait();
+      console.log("Swap transaction confirmed on-chain:", receipt.transactionHash);
+
       alert(`Swap successful! Tx Hash: ${tx.hash}`);
     } catch (error) {
       console.error("Swap error:", error);
