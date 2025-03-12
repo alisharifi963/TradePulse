@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { ChevronDown, X, HeartPulse, ArrowLeftRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import { ethers } from "ethers"; // فقط یه بار import شده
+import { ethers } from "ethers";
 
 // استایل Global برای حذف margin و padding پیش‌فرض
 const GlobalStyle = createGlobalStyle`
@@ -478,24 +478,35 @@ function Swap() {
     const srcTokenAddress = tokenAddresses[tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") return true;
 
-    const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-    const amount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-    const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
+    try {
+      const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
+      const amount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
-    if (allowance.lt(amount)) {
-      try {
+      // چک کردن شبکه قبل از فراخوانی قرارداد
+      const network = await provider.getNetwork();
+      if (network.chainId !== 42161n) {
+        await switchToArbitrum(window.ethereum);
+      }
+
+      // فراخوانی allowance و اعتبارسنجی
+      const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
+      if (!ethers.BigNumber.isBigNumber(allowance)) {
+        throw new Error("Allowance is not a valid BigNumber");
+      }
+
+      if (allowance.lt(amount)) {
         const tx = await tokenContract.approve(PARASWAP_PROXY, amount);
         await tx.wait();
         return true;
-      } catch (error) {
-        console.error("Approval failed:", error);
-        setErrorMessage(`Token approval failed: ${error.message}`);
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 5000);
-        throw error;
       }
+      return true;
+    } catch (error) {
+      console.error("Approval failed:", error);
+      setErrorMessage(`Token approval failed: ${error.message}`);
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 5000);
+      throw error;
     }
-    return true;
   };
 
   const buildTransaction = async () => {
@@ -532,7 +543,6 @@ function Swap() {
         );
       }
 
-      // مطمئن می‌شیم responseData یه شیء معتبر با کلیدهای لازم داره
       if (!responseData.to || !responseData.data) {
         throw new Error("Invalid transaction data from API");
       }
@@ -755,7 +765,7 @@ function Swap() {
                     placeholder="Amount to sell"
                     value={amountFrom}
                     onChange={(e) => setAmountFrom(e.target.value || "")}
-                    min="0.01" // حداقل مقدار معتبر
+                    min="0.01"
                   />
                   <TokenButton onClick={() => openModal(true)}>
                     <span>{tokenFrom}</span>
