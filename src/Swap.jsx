@@ -895,7 +895,7 @@ function Swap() {
     setUsdEquivalent("");
   };
 
-  // تنظیم مقدار amountFrom به کل موجودی
+  // تنظیم مقدار amountFrom به کل موجودی (خط 856)
   const setMaxAmountFrom = () => {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) {
       setAmountFrom(tokenFromBalance);
