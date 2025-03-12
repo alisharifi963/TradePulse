@@ -906,7 +906,7 @@ function Swap() {
     <>
       <GlobalStyle />
       <AppContainer>
-        <div style={{ position: "absolute", inset: 0, pointer-events: "none" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           <Particle />
           <ParticleBottom />
         </div>
@@ -990,7 +990,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
+                <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌توانید بعداً اضافه کنید */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
