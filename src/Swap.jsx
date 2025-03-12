@@ -35,7 +35,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// آدرس توکن‌ها در Arbitrum
+// آدرس توکن‌ها در Arbitrum (با اضافه کردن USDT)
 const tokenAddresses = {
   ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
   USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -46,9 +46,10 @@ const tokenAddresses = {
   LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
   WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
   GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
+  USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", // آدرس USDT روی Arbitrum
 };
 
-// تعداد اعشار هر توکن
+// تعداد اعشار هر توکن (با اضافه کردن USDT)
 const tokenDecimals = {
   ETH: 18,
   USDC: 6,
@@ -59,9 +60,10 @@ const tokenDecimals = {
   LINK: 18,
   WETH: 18,
   GMX: 18,
+  USDT: 6, // تعداد اعشار USDT
 };
 
-const tokens = Object.keys(tokenAddresses);
+const tokens = Object.keys(tokenAddresses); // به‌روزرسانی خودکار با اضافه شدن USDT
 const apiUrl = "https://apiv5.paraswap.io";
 
 // استایل‌ها
@@ -465,7 +467,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]); // مقدار مورد نیاز برای تراکنش
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
