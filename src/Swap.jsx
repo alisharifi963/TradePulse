@@ -1,9 +1,31 @@
 import { motion } from "framer-motion";
 import { ChevronDown, X, HeartPulse, ArrowLeftRight } from "lucide-react";
 import { useState, useEffect } from "react";
-import styled from "styled-components";
+import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
-import { fetchBestRate, buildSwapTransaction } from "./backend"; // اضافه کردن توابع API
+
+// استایل Global برای حذف margin و padding پیش‌فرض
+const GlobalStyle = createGlobalStyle`
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+  }
+
+  *, *:before, *:after {
+    box-sizing: border-box;
+  }
+`;
+
+// تعریف آدرس با checksum
+const PARASWAP_PROXY = ethers.getAddress("0x216B4B4Ba9F3e719726886d34a1774842785337C");
 
 // ERC-20 ABI
 const ERC20_ABI = [
@@ -41,9 +63,7 @@ const tokenDecimals = {
 
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
-import { ethers } from "ethers";
 
-const PARASWAP_PROXY = ethers.getAddress("0x216B4B4Ba9F3e719726886d34a1774842785337C");
 // استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
@@ -383,7 +403,7 @@ const switchToArbitrum = async (provider) => {
 };
 
 function Swap() {
-  let abortController = new AbortController(); // کنترل درخواست‌های API
+  let abortController = new AbortController();
 
   const [tokenFrom, setTokenFrom] = useState("ETH");
   const [tokenTo, setTokenTo] = useState("USDC");
@@ -407,7 +427,7 @@ function Swap() {
     if (amountFrom && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
     }
-  }, [amountFrom, tokenFrom, tokenTo]); // اینجا مقدار `amountFrom` رو هم اضافه کردیم
+  }, [amountFrom, tokenFrom, tokenTo]);
 
   const fetchBestRate = async () => {
     try {
@@ -692,184 +712,189 @@ function Swap() {
   const swapTokens = () => {
     setTokenFrom(tokenTo);
     setTokenTo(tokenFrom);
-    setAmountFrom(""); // مقدار ورودی رو خالی کن
-    setAmountTo(""); // مقدار خروجی هم خالی بشه
+    setAmountFrom("");
+    setAmountTo("");
     setBestDex("Fetching...");
   };
 
   return (
-    <AppContainer>
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-        <Particle />
-        <ParticleBottom />
-      </div>
+    <>
+      <GlobalStyle />
+      <AppContainer>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          <Particle />
+          <ParticleBottom />
+        </div>
 
-      <Header>
-        <HeaderTitle>
-          <HeartIcon
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 1 }}
+        <Header>
+          <HeaderTitle>
+            <HeartIcon
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
+              <HeartPulse size={20} />
+            </HeartIcon>
+            <h1
+              style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}
+            >
+              TradePulse Swap
+            </h1>
+          </HeaderTitle>
+          <ConnectButton
+            onClick={isConnected ? disconnectWallet : handleConnect}
+            whileHover={{ scale: 1.05 }}
           >
-            <HeartPulse size={20} />
-          </HeartIcon>
-          <h1
-            style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}
-          >
-            TradePulse Swap
-          </h1>
-        </HeaderTitle>
-        <ConnectButton
-          onClick={isConnected ? disconnectWallet : handleConnect}
-          whileHover={{ scale: 1.05 }}
-        >
-          {isConnected
-            ? `${address.slice(0, 6)}...${address.slice(-4)}`
-            : "Connect Wallet"}
-        </ConnectButton>
-      </Header>
+            {isConnected
+              ? `${address.slice(0, 6)}...${address.slice(-4)}`
+              : "Connect Wallet"}
+          </ConnectButton>
+        </Header>
 
-      <MainContent>
-        <Card>
-          <CardContent>
-            <Subtitle>Swap Tokens Seamlessly</Subtitle>
-            <div>
-              <InputContainer>
-                <Input
-                  type="number"
-                  placeholder="Amount to sell"
-                  value={amountFrom}
-                  onChange={(e) => setAmountFrom(e.target.value)}
-                />
-                <TokenButton onClick={() => openModal(true)}>
-                  <span>{tokenFrom}</span>
-                  <ChevronDown size={16} />
-                </TokenButton>
-              </InputContainer>
-
-              <SwapTokensContainer>
-                <SwapTokensButton
-                  onClick={swapTokens}
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <ArrowLeftRight size={24} />
-                </SwapTokensButton>
-              </SwapTokensContainer>
-
-              <InputContainer>
-                <Input
-                  type="number"
-                  placeholder="Amount to buy"
-                  value={amountTo}
-                  readOnly
-                />
-                <TokenButton onClick={() => openModal(false)}>
-                  <span>{tokenTo}</span>
-                  <ChevronDown size={16} />
-                </TokenButton>
-              </InputContainer>
-
-              {isConnected && (
+        <MainContent>
+          <Card>
+            <CardContent>
+              <Subtitle>Swap Tokens Seamlessly</Subtitle>
+              <div>
                 <InputContainer>
                   <Input
-                    type="text"
-                    value={customTokenAddress}
-                    onChange={(e) => setCustomTokenAddress(e.target.value)}
-                    placeholder="Search token by contract address"
+                    type="number"
+                    placeholder="Amount to sell"
+                    value={amountFrom}
+                    onChange={(e) => setAmountFrom(e.target.value)}
                   />
-                  <button onClick={searchToken}>Search</button>
+                  <TokenButton onClick={() => openModal(true)}>
+                    <span>{tokenFrom}</span>
+                    <ChevronDown size={16} />
+                  </TokenButton>
                 </InputContainer>
-              )}
 
-              <RateInfo>
-                Best Rate from:{" "}
-                <span style={{ fontWeight: "600" }}>{bestDex}</span>
-              </RateInfo>
+                <SwapTokensContainer>
+                  <SwapTokensButton
+                    onClick={swapTokens}
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <ArrowLeftRight size={24} />
+                  </SwapTokensButton>
+                </SwapTokensContainer>
 
-              <SwapButton
-                onClick={handleSwap}
-                disabled={isSwapping}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {isSwapping ? "Swapping..." : `Swap ${tokenFrom} to ${tokenTo}`}
-              </SwapButton>
-            </div>
-          </CardContent>
-          <CardHeartIcon
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 1 }}
-          >
-            <HeartPulse size={20} />
-          </CardHeartIcon>
-        </Card>
-      </MainContent>
+                <InputContainer>
+                  <Input
+                    type="number"
+                    placeholder="Amount to buy"
+                    value={amountTo}
+                    readOnly
+                  />
+                  <TokenButton onClick={() => openModal(false)}>
+                    <span>{tokenTo}</span>
+                    <ChevronDown size={16} />
+                  </TokenButton>
+                </InputContainer>
 
-      {isModalOpen && (
-        <ModalOverlay
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <ModalContent
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-          >
-            <ModalHeader>
-              <ModalTitle>Select Token</ModalTitle>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                style={{ color: "white" }}
-              >
-                <X size={24} />
-              </button>
-            </ModalHeader>
-            <TokenGrid>
-              {tokens.map((token) => (
-                <TokenOption
-                  key={token}
-                  onClick={() => selectToken(token)}
+                {isConnected && (
+                  <InputContainer>
+                    <Input
+                      type="text"
+                      value={customTokenAddress}
+                      onChange={(e) => setCustomTokenAddress(e.target.value)}
+                      placeholder="Search token by contract address"
+                    />
+                    <button onClick={searchToken}>Search</button>
+                  </InputContainer>
+                )}
+
+                <RateInfo>
+                  Best Rate from:{" "}
+                  <span style={{ fontWeight: "600" }}>{bestDex}</span>
+                </RateInfo>
+
+                <SwapButton
+                  onClick={handleSwap}
+                  disabled={isSwapping}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {token}
-                </TokenOption>
-              ))}
-              {customTokens.map((token) => (
-                <TokenOption
-                  key={token.address}
-                  onClick={() => selectToken(token.symbol)}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  {isSwapping
+                    ? "Swapping..."
+                    : `Swap ${tokenFrom} to ${tokenTo}`}
+                </SwapButton>
+              </div>
+            </CardContent>
+            <CardHeartIcon
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            >
+              <HeartPulse size={20} />
+            </CardHeartIcon>
+          </Card>
+        </MainContent>
+
+        {isModalOpen && (
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <ModalContent
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+            >
+              <ModalHeader>
+                <ModalTitle>Select Token</ModalTitle>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  style={{ color: "white" }}
                 >
-                  {token.symbol}
-                </TokenOption>
-              ))}
-            </TokenGrid>
-          </ModalContent>
-        </ModalOverlay>
-      )}
+                  <X size={24} />
+                </button>
+              </ModalHeader>
+              <TokenGrid>
+                {tokens.map((token) => (
+                  <TokenOption
+                    key={token}
+                    onClick={() => selectToken(token)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {token}
+                  </TokenOption>
+                ))}
+                {customTokens.map((token) => (
+                  <TokenOption
+                    key={token.address}
+                    onClick={() => selectToken(token.symbol)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {token.symbol}
+                  </TokenOption>
+                ))}
+              </TokenGrid>
+            </ModalContent>
+          </ModalOverlay>
+        )}
 
-      {isNotificationVisible && (
-        <Notification
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -50 }}
-          transition={{ duration: 0.3 }}
-        >
-          {errorMessage}
-          <CloseButton onClick={() => setIsNotificationVisible(false)}>
-            <X size={18} />
-          </CloseButton>
-        </Notification>
-      )}
+        {isNotificationVisible && (
+          <Notification
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ duration: 0.3 }}
+          >
+            {errorMessage}
+            <CloseButton onClick={() => setIsNotificationVisible(false)}>
+              <X size={18} />
+            </CloseButton>
+          </Notification>
+        )}
 
-      <Footer>
-        <FooterText>
-          Powered by TradePulse | Built on Arbitrum |{" "}
-          <FooterLink href="#">Learn More</FooterLink>
-        </FooterText>
-      </Footer>
-    </AppContainer>
+        <Footer>
+          <FooterText>
+            Powered by TradePulse | Built on Arbitrum |{" "}
+            <FooterLink href="#">Learn More</FooterLink>
+          </FooterText>
+        </Footer>
+      </AppContainer>
+    </>
   );
 }
 
