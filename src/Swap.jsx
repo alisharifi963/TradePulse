@@ -396,8 +396,8 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function Swap() {
   let abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("LINK");
-  const [tokenTo, setTokenTo] = useState("ETH");
+  const [tokenFrom, setTokenFrom] = useState("ETH"); // تغییر از LINK به ETH
+  const [tokenTo, setTokenTo] = useState("USDC"); // تغییر از ETH به USDC
   const [amountFrom, setAmountFrom] = useState("0.01");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
@@ -415,8 +415,8 @@ function Swap() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [usdEquivalent, setUsdEquivalent] = useState("");
-  const [tokenFromBalance, setTokenFromBalance] = useState("0"); // موجودی توکن From
-  const [tokenToBalance, setTokenToBalance] = useState("0"); // موجودی توکن To
+  const [tokenFromBalance, setTokenFromBalance] = useState("0");
+  const [tokenToBalance, setTokenToBalance] = useState("0");
 
   // تابع برای گرفتن موجودی توکن‌ها
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
