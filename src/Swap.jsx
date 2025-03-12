@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { ChevronDown, X, HeartPulse, ArrowLeftRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import { ethers } from "ethers";
+import { ethers } from "ethers"; // فقط یه بار import شده
 
 // استایل Global برای حذف margin و padding پیش‌فرض
 const GlobalStyle = createGlobalStyle`
@@ -24,8 +24,8 @@ const GlobalStyle = createGlobalStyle`
   }
 `;
 
-// تعریف آدرس با checksum
-const PARASWAP_PROXY = ethers.getAddress("0x216B4B4Ba9F3e719726886d34a1774842785337C");
+// تعریف آدرس با checksum درست
+const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a1774842785337c");
 
 // ERC-20 ABI
 const ERC20_ABI = [
@@ -78,264 +78,171 @@ const AppContainer = styled.div`
   position: relative;
 `;
 
-const Particle = styled.div`
-  position: absolute;
-  width: 24rem;
-  height: 24rem;
-  background: rgba(59, 130, 246, 0.1);
-  border-radius: 50%;
-  filter: blur(6rem);
-  top: 2.5rem;
-  left: 2.5rem;
-  animation: pulse 8s infinite;
-  @keyframes pulse {
-    0% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.2);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-`;
-
-const ParticleBottom = styled(Particle)`
-  background: rgba(147, 51, 234, 0.1);
-  top: auto;
-  bottom: 2.5rem;
-  left: auto;
-  right: 2.5rem;
-`;
-
 const Header = styled.header`
-  width: 100%;
-  padding: 1rem 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(31, 41, 55, 0.5);
-  backdrop-filter: blur(10px);
+  padding: 1rem 2rem;
 `;
 
 const HeaderTitle = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
 `;
 
 const HeartIcon = styled(motion.div)`
-  position: relative;
-  top: 0 rem;
-  color: #3b82f6;
-`;
-
-const CardHeartIcon = styled(motion.div)`
-  position: absolute;
-  bottom: 0.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #3b82f6;
+  color: #10b981;
 `;
 
 const ConnectButton = styled(motion.button)`
   background: #10b981;
   color: white;
   padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  margin-left: 1rem;
-  margin-right: 1.5rem;
-  &:hover {
-    background: #059669;
-  }
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
 `;
 
-const MainContent = styled.div`
+const MainContent = styled.main`
   flex: 1;
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
 `;
 
 const Card = styled.div`
-  background: rgba(31, 41, 55, 0.8);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
   width: 100%;
   max-width: 28rem;
-  padding: 1.5rem;
-  color: white;
   position: relative;
+  backdrop-filter: blur(10px);
 `;
 
 const CardContent = styled.div`
-  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 `;
 
 const Subtitle = styled.h2`
   font-size: 1.25rem;
   font-weight: 600;
-  text-align: center;
-  margin-bottom: 1.5rem;
   color: white;
+  text-align: center;
 `;
 
 const InputContainer = styled.div`
   display: flex;
   align-items: center;
-  background: rgba(55, 65, 81, 0.5);
-  padding: 1rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(75, 85, 99, 0.5);
-  margin-bottom: 1rem;
+  gap: 0.5rem;
 `;
 
 const Input = styled.input`
-  background: transparent;
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #4b5563;
+  background: #1f2937;
   color: white;
-  width: 66.67%;
-  outline: none;
-  border: none;
-  font-size: 1.125rem;
+  font-size: 1rem;
 `;
 
 const TokenButton = styled.button`
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: #4f46e5;
-  color: white;
   padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  margin-left: 0.5rem;
-  transition: background 0.3s;
-  &:hover {
-    background: #4338ca;
-  }
+  background: #10b981;
+  color: white;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
 `;
 
 const SwapTokensContainer = styled.div`
   display: flex;
   justify-content: center;
-  align-items: center;
-  margin: 0.5rem 0;
 `;
 
 const SwapTokensButton = styled(motion.button)`
   background: #10b981;
   color: white;
   padding: 0.5rem;
-  border-radius: 0.5rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  &:hover {
-    background: #059669;
-  }
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
 `;
 
-const RateInfo = styled.p`
+const RateInfo = styled.div`
   text-align: center;
+  color: white;
   font-size: 0.875rem;
-  color: #3b82f6;
-  margin-bottom: 1rem;
 `;
 
 const SwapButton = styled(motion.button)`
-  width: 100%;
-  padding: 1rem;
-  border-radius: 0.75rem;
-  font-size: 1.125rem;
-  font-weight: 600;
-  background: linear-gradient(to right, #10b981, #14b8a6);
+  background: #10b981;
   color: white;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: background 0.3s;
-  &:hover {
-    background: linear-gradient(to right, #059669, #0d9488);
-  }
-  &:disabled {
-    background: #6b7280;
-    cursor: not-allowed;
-  }
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+`;
+
+const CardHeartIcon = styled(motion.div)`
+  position: absolute;
+  bottom: -1rem;
+  right: -1rem;
+  color: #10b981;
 `;
 
 const ModalOverlay = styled(motion.div)`
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 50;
 `;
 
 const ModalContent = styled(motion.div)`
-  background: rgba(31, 41, 55, 0.9);
-  backdrop-filter: blur(10px);
-  padding: 1.5rem;
+  background: #1f2937;
   border-radius: 1rem;
-  width: 20rem;
-  max-height: 80vh;
-  overflow-y: auto;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 20rem;
 `;
 
 const ModalHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 `;
 
 const ModalTitle = styled.h3`
-  font-size: 1.25rem;
-  font-weight: 600;
   color: white;
+  font-size: 1.125rem;
+  font-weight: 600;
 `;
 
 const TokenGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+  gap: 0.5rem;
 `;
 
-const TokenOption = styled(motion.button)`
-  padding: 0.75rem;
-  background: #4f46e5;
+const TokenOption = styled(motion.div)`
+  background: #374151;
   color: white;
-  border-radius: 0.5rem;
-  transition: background 0.3s;
-  font-weight: 500;
-  &:hover {
-    background: #4338ca;
-  }
-`;
-
-const Footer = styled.footer`
-  width: 100%;
-  padding: 1rem 1.5rem;
-  background: rgba(31, 41, 55, 0.5);
-  backdrop-filter: blur(10px);
+  padding: 0.5rem;
+  border-radius: 0.375rem;
   text-align: center;
-`;
-
-const FooterText = styled.p`
-  font-size: 0.875rem;
-  color: #9ca3af;
-`;
-
-const FooterLink = styled.a`
-  color: #3b82f6;
-  &:hover {
-    text-decoration: underline;
-  }
+  cursor: pointer;
 `;
 
 const Notification = styled(motion.div)`
@@ -345,43 +252,52 @@ const Notification = styled(motion.div)`
   transform: translateX(-50%);
   background: #ef4444;
   color: white;
-  padding: 1rem 2rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-  z-index: 100;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  animation: slideIn 0.3s ease-out;
-
-  @keyframes slideIn {
-    from {
-      top: -5rem;
-    }
-    to {
-      top: 1rem;
-    }
-  }
 `;
 
 const CloseButton = styled.button`
   background: none;
-  color: white;
   border: none;
-  font-size: 1.25rem;
+  color: white;
   cursor: pointer;
-  margin-left: 1rem;
 `;
 
-const switchToArbitrum = async (provider) => {
+const Footer = styled.footer`
+  padding: 1rem;
+  text-align: center;
+`;
+
+const FooterText = styled.p`
+  color: white;
+  font-size: 0.875rem;
+`;
+
+const FooterLink = styled.a`
+  color: #10b981;
+  text-decoration: none;
+`;
+
+function Particle() {
+  return <div />;
+}
+
+function ParticleBottom() {
+  return <div />;
+}
+
+async function switchToArbitrum(ethereum) {
   try {
-    await provider.request({
+    await ethereum.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: "0xa4b1" }],
     });
-  } catch (error) {
-    if (error.code === 4902) {
-      await provider.request({
+  } catch (switchError) {
+    if (switchError.code === 4902) {
+      await ethereum.request({
         method: "wallet_addEthereumChain",
         params: [
           {
@@ -389,18 +305,19 @@ const switchToArbitrum = async (provider) => {
             chainName: "Arbitrum One",
             rpcUrls: ["https://arb1.arbitrum.io/rpc"],
             nativeCurrency: {
+              name: "Ether",
               symbol: "ETH",
               decimals: 18,
             },
-            blockExplorerUrls: ["https://arbiscan.io"],
+            blockExplorerUrls: ["https://arbiscan.io/"],
           },
         ],
       });
     } else {
-      throw error;
+      throw switchError;
     }
   }
-};
+}
 
 function Swap() {
   let abortController = new AbortController();
@@ -459,6 +376,7 @@ function Swap() {
 
       const data = await response.json();
       if (data.priceRoute) {
+        setPriceRoute(data.priceRoute); // ذخیره priceRoute برای استفاده در تراکنش
         setAmountTo(
           ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo])
         );
@@ -569,12 +487,7 @@ function Swap() {
     setIsSwapping(true);
     try {
       await checkAndApproveToken();
-      const txParams = await buildSwapTransaction(
-        tokenFrom,
-        tokenTo,
-        amountFrom,
-        address
-      );
+      const txParams = await buildTransaction();
 
       if (!txParams || txParams.error) {
         throw new Error(
@@ -625,7 +538,7 @@ function Swap() {
         await provider.send("eth_requestAccounts", []);
         const network = await provider.getNetwork();
 
-        if (network.chainId !== 42161) {
+        if (network.chainId !== 42161n) {
           await switchToArbitrum(window.ethereum);
         }
 
@@ -667,7 +580,7 @@ function Swap() {
     if (ethers.isAddress(customTokenAddress)) {
       try {
         const network = await provider.getNetwork();
-        if (network.chainId !== 42161) {
+        if (network.chainId !== 42161n) {
           setErrorMessage(
             "Connected to wrong network. Please switch to Arbitrum (chain ID 42161)."
           );
