@@ -24,8 +24,8 @@ const GlobalStyle = createGlobalStyle`
   }
 `;
 
-// تعریف آدرس با checksum درست
-const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a1774842785337c");
+// تعریف آدرس با checksum درست (به‌روزرسانی با آدرس صحیح ParaSwap Proxy)
+const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
 
 // ERC-20 ABI
 const ERC20_ABI = [
@@ -380,7 +380,7 @@ function Swap() {
   const [isConnected, setIsConnected] = useState(false);
   const [address, setAddress] = useState("");
   const [priceRoute, setPriceRoute] = useState(null);
-  const [isPriceRouteReady, setIsPriceRouteReady] = useState(false); // حالت جدید برای اطمینان از آماده بودن priceRoute
+  const [isPriceRouteReady, setIsPriceRouteReady] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
   const [customTokenAddress, setCustomTokenAddress] = useState("");
   const [customTokens, setCustomTokens] = useState([]);
@@ -402,7 +402,7 @@ function Swap() {
 
   const fetchBestRate = async () => {
     try {
-      setIsPriceRouteReady(false); // غیرفعال کردن تا زمانی که priceRoute جدید آماده بشه
+      setIsPriceRouteReady(false);
       const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
@@ -441,7 +441,7 @@ function Swap() {
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
-        setIsPriceRouteReady(true); // فعال کردن بعد از دریافت priceRoute
+        setIsPriceRouteReady(true);
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
@@ -465,7 +465,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+      const amountBN = ethers.MaxUint256; // Approve مقدار حداکثر برای جلوگیری از مشکل allowance
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -476,18 +476,18 @@ function Swap() {
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
       const allowanceBN = ethers.toBigInt(allowance.toString());
 
-      console.log("Allowance:", allowanceBN.toString(), "Amount needed:", amountBN.toString());
+      console.log("Current Allowance:", allowanceBN.toString(), "Max Amount:", amountBN.toString());
 
-      if (allowanceBN < amountBN) {
-        console.log("Insufficient allowance, approving...");
+      if (allowanceBN < ethers.toBigInt("1000000000000000000")) { // اگه allowance کمتر از 1 توکن باشه
+        console.log("Insufficient allowance, approving max amount...");
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         console.log("Approval transaction sent:", tx.hash);
         const receipt = await tx.wait();
         console.log("Approval confirmed on-chain:", receipt.transactionHash);
 
-        // تأخیر 2 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
+        // تأخیر 5 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
         console.log("Waiting for blockchain to update allowance...");
-        await delay(2000);
+        await delay(5000);
       } else {
         console.log("Sufficient allowance, no approval needed.");
       }
@@ -592,7 +592,6 @@ function Swap() {
       }
       console.log("Token approval completed successfully.");
 
-      // به‌روزرسانی priceRoute قبل از ساخت تراکنش
       console.log("Refreshing price route before building transaction...");
       await fetchBestRate();
       if (!isPriceRouteReady) {
@@ -610,7 +609,7 @@ function Swap() {
       const txValue = txParams.value
         ? ethers.getBigInt(txParams.value.toString())
         : 0n;
-      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 500000n; // افزایش گس برای اطمینان
+      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 500000n;
 
       console.log("Sending swap transaction...");
       const tx = await signer.sendTransaction({
