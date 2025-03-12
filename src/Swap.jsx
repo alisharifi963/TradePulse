@@ -450,7 +450,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]); // amount رو به BigNumber تبدیل کردیم
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -458,9 +458,14 @@ function Swap() {
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      if (allowance.lt(amountBN)) { // حالا هر دو BigNumber هستن
+      const allowanceBN = ethers.BigNumber.from(allowance);
+      if (allowanceBN.lt(amountBN)) {
+        console.log("Allowance کافی نیست، Approve انجام می‌شه...");
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
+        console.log("Approve با موفقیت انجام شد!");
+      } else {
+        console.log("Allowance کافی هست، نیازی به Approve نیست.");
       }
       return true;
     } catch (error) {
