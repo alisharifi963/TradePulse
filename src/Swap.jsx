@@ -396,7 +396,7 @@ function Swap() {
 
   const fetchBestRate = async () => {
     try {
-      const amount = ethers.utils.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
+      const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -428,7 +428,7 @@ function Swap() {
       const data = await response.json();
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        setAmountTo(ethers.utils.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
+        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
         setBestDex(
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
@@ -450,7 +450,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.utils.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -458,7 +458,7 @@ function Swap() {
       }
 
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      const allowanceBN = ethers.utils.parseUnits(allowance.toString(), tokenDecimals[tokenFrom]);
+      const allowanceBN = ethers.parseUnits(allowance.toString(), tokenDecimals[tokenFrom]);
 
       if (allowanceBN.lt(amountBN)) {
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
@@ -486,7 +486,7 @@ function Swap() {
       const txData = {
         srcToken,
         destToken,
-        srcAmount: ethers.utils.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString(),
+        srcAmount: ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString(),
         destAmount: priceRoute.destAmount.toString(),
         priceRoute,
         userAddress: address,
