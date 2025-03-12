@@ -35,7 +35,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// آدرس توکن‌ها در Arbitrum (با اضافه کردن USDT)
+// آدرس توکن‌ها در Arbitrum
 const tokenAddresses = {
   ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
   USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -46,10 +46,10 @@ const tokenAddresses = {
   LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
   WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
   GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
-  USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", // آدرس USDT روی Arbitrum
+  USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
 };
 
-// تعداد اعشار هر توکن (با اضافه کردن USDT)
+// تعداد اعشار هر توکن
 const tokenDecimals = {
   ETH: 18,
   USDC: 6,
@@ -60,10 +60,10 @@ const tokenDecimals = {
   LINK: 18,
   WETH: 18,
   GMX: 18,
-  USDT: 6, // تعداد اعشار USDT
+  USDT: 6,
 };
 
-const tokens = Object.keys(tokenAddresses); // به‌روزرسانی خودکار با اضافه شدن USDT
+const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
 // استایل‌ها
@@ -175,7 +175,14 @@ const InputContainer = styled.div`
   padding: 1rem;
   border-radius: 0.75rem;
   border: 1px solid rgba(75, 85, 99, 0.5);
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
+`;
+
+const UsdEquivalent = styled.p`
+  text-align: right;
+  font-size: 0.875rem;
+  color: #3b82f6;
+  margin: 0 1rem 1rem 0;
 `;
 
 const Input = styled.input`
@@ -390,6 +397,7 @@ function Swap() {
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
+  const [usdEquivalent, setUsdEquivalent] = useState(""); // حالت جدید برای معادل دلاری
 
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
@@ -399,6 +407,7 @@ function Swap() {
       setBestDex("Enter a valid amount greater than 0");
       setPriceRoute(null);
       setIsPriceRouteReady(false);
+      setUsdEquivalent(""); // ریست معادل دلاری
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
@@ -410,6 +419,7 @@ function Swap() {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
         setPriceRoute(null);
+        setUsdEquivalent("");
         return;
       }
 
@@ -430,6 +440,7 @@ function Swap() {
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
           setPriceRoute(null);
+          setUsdEquivalent("");
           return;
         }
 
@@ -444,16 +455,28 @@ function Swap() {
           data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap"
         );
         setIsPriceRouteReady(true);
+
+        // محاسبه معادل دلاری
+        const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+        const usdPrice = data.priceRoute.srcUSD; // قیمت توکن منبع به دلار (بسته به API ParaSwap)
+        if (usdPrice) {
+          const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
+          setUsdEquivalent(`≈ $${usdValue} USD`);
+        } else {
+          setUsdEquivalent("Price not available");
+        }
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
         setPriceRoute(null);
+        setUsdEquivalent("");
       }
     } catch (error) {
       console.error("Error fetching rate:", error);
       setAmountTo("");
       setBestDex("Error fetching rate");
       setPriceRoute(null);
+      setUsdEquivalent("");
       alert(`Error fetching rate: ${error.message}`);
     }
   };
@@ -757,6 +780,7 @@ function Swap() {
     setAmountFrom("");
     setAmountTo("");
     setBestDex("Fetching...");
+    setUsdEquivalent(""); // ریست معادل دلاری موقع سواپ توکن‌ها
   };
 
   return (
@@ -808,6 +832,7 @@ function Swap() {
                     <ChevronDown size={16} />
                   </TokenButton>
                 </InputContainer>
+                <UsdEquivalent>{usdEquivalent}</UsdEquivalent> {/* نمایش معادل دلاری */}
 
                 <SwapTokensContainer>
                   <SwapTokensButton
@@ -830,6 +855,7 @@ function Swap() {
                     <ChevronDown size={16} />
                   </TokenButton>
                 </InputContainer>
+                <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
