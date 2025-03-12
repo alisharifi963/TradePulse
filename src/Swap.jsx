@@ -64,7 +64,7 @@ const tokenDecimals = {
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
-// استایل‌ها (همون قبلی‌ها)
+// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -89,15 +89,9 @@ const Particle = styled.div`
   left: 2.5rem;
   animation: pulse 8s infinite;
   @keyframes pulse {
-    0% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.2);
-    }
-    100% {
-      transform: scale(1);
-    }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
   }
 `;
 
@@ -126,8 +120,6 @@ const HeaderTitle = styled.div`
 `;
 
 const HeartIcon = styled(motion.div)`
-  position: relative;
-  top: 0;
   color: #3b82f6;
 `;
 
@@ -139,9 +131,7 @@ const ConnectButton = styled(motion.button)`
   font-weight: 600;
   margin-left: 1rem;
   margin-right: 1.5rem;
-  &:hover {
-    background: #059669;
-  }
+  &:hover { background: #059669; }
 `;
 
 const MainContent = styled.div`
@@ -205,9 +195,7 @@ const TokenButton = styled.button`
   border-radius: 0.5rem;
   margin-left: 0.5rem;
   transition: background 0.3s;
-  &:hover {
-    background: #4338ca;
-  }
+  &:hover { background: #4338ca; }
 `;
 
 const SwapTokensContainer = styled.div`
@@ -225,9 +213,7 @@ const SwapTokensButton = styled(motion.button)`
   display: flex;
   justify-content: center;
   align-items: center;
-  &:hover {
-    background: #059669;
-  }
+  &:hover { background: #059669; }
 `;
 
 const RateInfo = styled.p`
@@ -247,13 +233,8 @@ const SwapButton = styled(motion.button)`
   color: white;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: background 0.3s;
-  &:hover {
-    background: linear-gradient(to right, #059669, #0d9488);
-  }
-  &:disabled {
-    background: #6b7280;
-    cursor: not-allowed;
-  }
+  &:hover { background: linear-gradient(to right, #059669, #0d9488); }
+  &:disabled { background: #6b7280; cursor: not-allowed; }
 `;
 
 const ModalOverlay = styled(motion.div)`
@@ -305,9 +286,7 @@ const TokenOption = styled(motion.button)`
   border-radius: 0.5rem;
   transition: background 0.3s;
   font-weight: 500;
-  &:hover {
-    background: #4338ca;
-  }
+  &:hover { background: #4338ca; }
 `;
 
 const Footer = styled.footer`
@@ -325,9 +304,7 @@ const FooterText = styled.p`
 
 const FooterLink = styled.a`
   color: #3b82f6;
-  &:hover {
-    text-decoration: underline;
-  }
+  &:hover { text-decoration: underline; }
 `;
 
 const Notification = styled(motion.div)`
@@ -347,12 +324,8 @@ const Notification = styled(motion.div)`
   animation: slideIn 0.3s ease-out;
 
   @keyframes slideIn {
-    from {
-      top: -5rem;
-    }
-    to {
-      top: 1rem;
-    }
+    from { top: -5rem; }
+    to { top: 1rem; }
   }
 `;
 
@@ -380,10 +353,7 @@ const switchToArbitrum = async (provider) => {
             chainId: "0xa4b1",
             chainName: "Arbitrum One",
             rpcUrls: ["https://arb1.arbitrum.io/rpc"],
-            nativeCurrency: {
-              symbol: "ETH",
-              decimals: 18,
-            },
+            nativeCurrency: { symbol: "ETH", decimals: 18 },
             blockExplorerUrls: ["https://arbiscan.io"],
           },
         ],
@@ -399,7 +369,7 @@ function Swap() {
 
   const [tokenFrom, setTokenFrom] = useState("LINK");
   const [tokenTo, setTokenTo] = useState("ETH");
-  const [amountFrom, setAmountFrom] = useState("0.01"); // مقدار پیش‌فرض تغییر کرد
+  const [amountFrom, setAmountFrom] = useState("0.01");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -482,16 +452,14 @@ function Swap() {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
       const amount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
-      // چک کردن شبکه قبل از فراخوانی قرارداد
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
         await switchToArbitrum(window.ethereum);
       }
 
-      // فراخوانی allowance و اعتبارسنجی
       const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      if (!ethers.BigNumber.isBigNumber(allowance)) {
-        throw new Error("Allowance is not a valid BigNumber");
+      if (!allowance) {
+        throw new Error("Allowance is undefined");
       }
 
       if (allowance.lt(amount)) {
@@ -738,9 +706,7 @@ function Swap() {
             >
               <HeartPulse size={20} />
             </HeartIcon>
-            <h1
-              style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}
-            >
+            <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}>
               TradePulse Swap
             </h1>
           </HeaderTitle>
@@ -808,8 +774,7 @@ function Swap() {
                 )}
 
                 <RateInfo>
-                  Best Rate from:{" "}
-                  <span style={{ fontWeight: "600" }}>{bestDex}</span>
+                  Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span>
                 </RateInfo>
 
                 <SwapButton
