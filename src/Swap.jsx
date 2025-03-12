@@ -24,7 +24,7 @@ const GlobalStyle = createGlobalStyle`
   }
 `;
 
-// تعریف آدرس با checksum درست (به‌روزرسانی با آدرس صحیح ParaSwap Proxy)
+// تعریف آدرس با checksum درست
 const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
 
 // ERC-20 ABI
@@ -465,7 +465,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.MaxUint256; // Approve مقدار حداکثر برای جلوگیری از مشکل allowance
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]); // مقدار مورد نیاز برای تراکنش
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -473,21 +473,31 @@ function Swap() {
         await switchToArbitrum(window.ethereum);
       }
 
-      const allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
-      const allowanceBN = ethers.toBigInt(allowance.toString());
+      // چک کردن مقدار فعلی allowance
+      let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
+      let allowanceBN = ethers.toBigInt(allowance.toString());
 
-      console.log("Current Allowance:", allowanceBN.toString(), "Max Amount:", amountBN.toString());
+      console.log("Initial Allowance:", allowanceBN.toString(), "Amount needed:", amountBN.toString());
 
-      if (allowanceBN < ethers.toBigInt("1000000000000000000")) { // اگه allowance کمتر از 1 توکن باشه
+      if (allowanceBN < amountBN) {
         console.log("Insufficient allowance, approving max amount...");
-        const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
+        const tx = await tokenContract.approve(PARASWAP_PROXY, ethers.MaxUint256);
         console.log("Approval transaction sent:", tx.hash);
         const receipt = await tx.wait();
         console.log("Approval confirmed on-chain:", receipt.transactionHash);
 
-        // تأخیر 5 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
+        // تأخیر 10 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
         console.log("Waiting for blockchain to update allowance...");
-        await delay(5000);
+        await delay(10000);
+
+        // چک کردن دوباره allowance بعد از تأخیر
+        allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
+        allowanceBN = ethers.toBigInt(allowance.toString());
+        console.log("Updated Allowance after approval:", allowanceBN.toString());
+
+        if (allowanceBN < amountBN) {
+          throw new Error("Allowance still insufficient after approval!");
+        }
       } else {
         console.log("Sufficient allowance, no approval needed.");
       }
