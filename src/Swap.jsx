@@ -1164,7 +1164,7 @@ function Swap() {
                         <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </InputContainer>
+                  </TokenButtonContainer>
                 </InputContainer>
                 <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
@@ -1195,7 +1195,7 @@ function Swap() {
                         <span>{parseFloat(tokenToBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </InputContainer>
+                  </TokenButtonContainer>
                 </InputContainer>
                 <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
 
