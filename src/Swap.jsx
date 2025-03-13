@@ -454,15 +454,16 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   return (
     <motion.div
       style={{
-        position: "fixed",
+        position: "fixed", // مستقل از بقیه المان‌ها
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        display: "flex", // استفاده از flex برای وسط‌چین کردن
+        display: "flex",
         justifyContent: "center",
         alignItems: "center",
         zIndex: 101,
+        pointerEvents: "auto", // اطمینان از اینکه کلیک روی نوتیفیکیشن کار کنه
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -479,9 +480,10 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           display: "flex",
           alignItems: "center",
           gap: "0.5rem",
-          maxWidth: "500px", // عرض حداکثری برای جلوگیری از پهن شدن بیش از حد
+          maxWidth: "400px", // کاهش عرض حداکثری برای کنترل بهتر
           textAlign: "center",
-          wordBreak: "break-all", // شکستن متن طولانی
+          wordBreak: "break-word", // شکستن متن با احترام به کلمات
+          border: "2px solid red", // برای دیباگ بصری (بعداً می‌تونی حذف کنی)
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
