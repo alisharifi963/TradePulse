@@ -397,7 +397,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
   const heartVariants = {
     initial: { scale: 1 },
     animate: hasError
-      ? { scale: 1 } // متوقف کردن انیمیشن در صورت خطا
+      ? { scale: 1 }
       : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
   };
 
@@ -454,7 +454,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   return (
     <motion.div
       style={{
-        position: "fixed", // مستقل از بقیه المان‌ها
+        position: "fixed",
         top: 0,
         left: 0,
         right: 0,
@@ -463,7 +463,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         justifyContent: "center",
         alignItems: "center",
         zIndex: 101,
-        pointerEvents: "auto", // اطمینان از اینکه کلیک روی نوتیفیکیشن کار کنه
+        pointerEvents: "auto",
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -478,20 +478,22 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           borderRadius: "0.5rem",
           boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
           display: "flex",
+          flexDirection: "column", // برای چیدمان عمودی
           alignItems: "center",
           gap: "0.5rem",
-          maxWidth: "400px", // کاهش عرض حداکثری برای کنترل بهتر
+          maxWidth: "400px",
           textAlign: "center",
-          wordBreak: "break-word", // شکستن متن با احترام به کلمات
-          border: "2px solid red", // برای دیباگ بصری (بعداً می‌تونی حذف کنی)
+          wordBreak: "break-word",
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
-        {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
-        <span>{message}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+          <span>{message}</span>
+        </div>
         <button
           onClick={onClose}
           style={{
@@ -500,8 +502,8 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
             border: "none",
             padding: "0.25rem 0.5rem",
             borderRadius: "0.25rem",
-            marginLeft: "1rem",
             cursor: "pointer",
+            marginTop: "0.5rem",
           }}
         >
           OK
@@ -541,7 +543,7 @@ const switchToArbitrum = async (provider) => {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function Swap() {
-  let abortController = new AbortController();
+  const abortController = new AbortController();
 
   const [tokenFrom, setTokenFrom] = useState("ETH");
   const [tokenTo, setTokenTo] = useState("USDC");
@@ -626,7 +628,8 @@ function Swap() {
           tokenAddresses[tokenTo]
         }&amount=${amount}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${
           tokenDecimals[tokenTo]
-        }&side=SELL&network=42161`
+        }&side=SELL&network=42161`,
+        { signal: abortController.signal }
       );
 
       if (!response.ok) {
@@ -673,6 +676,7 @@ function Swap() {
         setUsdEquivalent("");
       }
     } catch (error) {
+      if (error.name === "AbortError") return;
       console.error("Error fetching rate:", error);
       setAmountTo("");
       setBestDex("Error fetching rate");
@@ -719,7 +723,7 @@ function Swap() {
       const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (network.chainId !== 42161n) {
+      if (network.chainId !== 42161n) { // اصلاح خطا
         console.log("Switching to Arbitrum network...");
         await switchToArbitrum(window.ethereum);
       }
@@ -784,6 +788,7 @@ function Swap() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(txData),
+        signal: abortController.signal,
       });
 
       const responseData = await response.json();
@@ -805,6 +810,7 @@ function Swap() {
       console.log("Transaction data received:", responseData);
       return responseData;
     } catch (error) {
+      if (error.name === "AbortError") return;
       console.error("Error building transaction:", error);
       setErrorMessage(`Transaction build failed: ${error.message}`);
       setIsNotificationVisible(true);
@@ -838,7 +844,7 @@ function Swap() {
     setIsSwapping(true);
     try {
       const network = await provider.getNetwork();
-      if (network.chainId !== 42161n) {
+      if (network.chainId !== 42161n) { // اصلاح خطا
         console.log("Switching to Arbitrum network...");
         await switchToArbitrum(window.ethereum);
       }
@@ -885,7 +891,7 @@ function Swap() {
         message: `Swap successful! Tx Hash: ${tx.hash}`,
         isSuccess: true,
       });
-      setTimeout(() => setSwapNotification(null), 3000);
+      setTimeout(() => setSwapNotification(null), 5000);
     } catch (error) {
       console.error("Swap error:", error);
       setErrorMessage(`Swap failed: ${error.message}`);
@@ -893,7 +899,7 @@ function Swap() {
         message: `Swap failed: ${error.message}`,
         isSuccess: false,
       });
-      setTimeout(() => setSwapNotification(null), 3000);
+      setTimeout(() => setSwapNotification(null), 5000);
     } finally {
       setIsSwapping(false);
     }
