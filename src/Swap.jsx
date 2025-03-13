@@ -211,6 +211,8 @@ const TokenButton = styled.button`
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   transition: background 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* اضافه کردن سایه */
+  border: 1px solid #6366f1; /* اضافه کردن حاشیه */
   &:hover { background: #4338ca; }
 `;
 
@@ -222,6 +224,16 @@ const BalanceContainer = styled.div`
   font-size: 0.875rem;
   cursor: pointer;
   &:hover { color: #3b82f6; }
+`;
+
+const MaxButton = styled.button`
+  background: #10b981;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  &:hover { background: #059669; }
 `;
 
 const SwapTokensContainer = styled.div`
@@ -396,8 +408,8 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function Swap() {
   let abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("ETH"); // تغییر از LINK به ETH
-  const [tokenTo, setTokenTo] = useState("USDC"); // تغییر از ETH به USDC
+  const [tokenFrom, setTokenFrom] = useState("ETH");
+  const [tokenTo, setTokenTo] = useState("USDC");
   const [amountFrom, setAmountFrom] = useState("0.01");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
@@ -417,6 +429,7 @@ function Swap() {
   const [usdEquivalent, setUsdEquivalent] = useState("");
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
+  const [gasEstimate, setGasEstimate] = useState(null); // اضافه کردن state برای تخمین گس
 
   // تابع برای گرفتن موجودی توکن‌ها
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
@@ -425,10 +438,8 @@ function Swap() {
       const tokenAddress = tokenAddresses[tokenSymbol];
       let balance;
       if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-        // برای ETH
         balance = await provider.getBalance(userAddress);
       } else {
-        // برای توکن‌های ERC-20
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         balance = await tokenContract.balanceOf(userAddress);
       }
@@ -439,7 +450,7 @@ function Swap() {
     }
   };
 
-  // به‌روزرسانی موجودی‌ها موقع اتصال والت یا تغییر توکن
+  // به‌روزرسانی موجودی‌ها
   useEffect(() => {
     const updateBalances = async () => {
       if (isConnected && address && provider) {
@@ -509,7 +520,6 @@ function Swap() {
         );
         setIsPriceRouteReady(true);
 
-        // محاسبه معادل دلاری
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
         const usdPrice = data.priceRoute.srcUSD;
         if (usdPrice) {
@@ -534,6 +544,27 @@ function Swap() {
     }
   };
 
+  const estimateGas = async () => {
+    if (signer && priceRoute) {
+      try {
+        const txParams = await buildTransaction();
+        const gas = await signer.estimateGas({
+          to: txParams.to,
+          data: txParams.data,
+          value: txParams.value || 0,
+        });
+        setGasEstimate(ethers.formatUnits(gas, "gwei"));
+      } catch (error) {
+        console.error("Error estimating gas:", error);
+        setGasEstimate("Unable to estimate");
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isPriceRouteReady) estimateGas();
+  }, [isPriceRouteReady]);
+
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
@@ -551,7 +582,6 @@ function Swap() {
         await switchToArbitrum(window.ethereum);
       }
 
-      // چک کردن مقدار فعلی allowance
       let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
@@ -564,11 +594,9 @@ function Swap() {
         const receipt = await tx.wait();
         console.log("Approval confirmed on-chain:", receipt.transactionHash);
 
-        // تأخیر 10 ثانیه‌ای برای اطمینان از به‌روزرسانی بلاک‌چین
         console.log("Waiting for blockchain to update allowance...");
         await delay(10000);
 
-        // چک کردن دوباره allowance بعد از تأخیر
         allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
         console.log("Updated Allowance after approval:", allowanceBN.toString());
@@ -838,7 +866,6 @@ function Swap() {
     setUsdEquivalent("");
   };
 
-  // تنظیم مقدار amountFrom به کل موجودی
   const setMaxAmountFrom = () => {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) {
       setAmountFrom(tokenFromBalance);
@@ -895,9 +922,10 @@ function Swap() {
                       <ChevronDown size={16} />
                     </TokenButton>
                     {isConnected && (
-                      <BalanceContainer onClick={setMaxAmountFrom}>
+                      <BalanceContainer>
                         <Wallet size={14} />
                         <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
+                        <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>
                       </BalanceContainer>
                     )}
                   </TokenButtonContainer>
@@ -950,6 +978,7 @@ function Swap() {
                 <RateInfo>
                   Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span>
                 </RateInfo>
+                <RateInfo>Estimated Gas: {gasEstimate ? `${gasEstimate} Gwei` : "Calculating..."}</RateInfo>
 
                 <SwapButton
                   onClick={handleSwap}
