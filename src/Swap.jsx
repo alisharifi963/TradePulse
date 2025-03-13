@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 
-// استایل Global برای حذف margin و padding پیش‌فرض
+// استایل Global برای حذف margin و padding پیش‌فرض و اضافه کردن فونت Caveat
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -22,6 +22,8 @@ const GlobalStyle = createGlobalStyle`
   *, *:before, *:after {
     box-sizing: border-box;
   }
+
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
 // تعریف آدرس با checksum درست
@@ -114,12 +116,22 @@ const Header = styled.header`
   align-items: center;
   background: rgba(31, 41, 55, 0.5);
   backdrop-filter: blur(10px);
+  position: relative; /* برای قرار گرفتن چسب نسبت به هدر */
 `;
 
 const HeaderTitle = styled.div`
   display: flex;
   align-items: center;
   gap: 0.75rem;
+`;
+
+const BetaTag = styled.span`
+  font-size: 1rem; /* 8px کوچک‌تر از TradePulse Swap */
+  font-weight: 500;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
 `;
 
 const HeartIcon = styled(motion.div)`
@@ -135,6 +147,27 @@ const ConnectButton = styled(motion.button)`
   margin-left: 1rem;
   margin-right: 1.5rem;
   &:hover { background: #059669; }
+`;
+
+const TrustSticker = styled.div`
+  position: absolute;
+  top: 4rem;
+  left: 2rem;
+  background: #f5f5f5;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+  transform: rotate(-5deg);
+  z-index: 10;
+`;
+
+const TrustText = styled.p`
+  font-family: 'Caveat', cursive;
+  font-size: 1.25rem;
+  color: #374151;
+  margin: 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 `;
 
 const MainContent = styled.div`
@@ -1047,6 +1080,7 @@ function Swap() {
             <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}>
               TradePulse Swap
             </h1>
+            <BetaTag>Beta</BetaTag>
           </HeaderTitle>
           <ConnectButton
             onClick={isConnected ? disconnectWallet : handleConnect}
@@ -1057,6 +1091,10 @@ function Swap() {
               : "Connect Wallet"}
           </ConnectButton>
         </Header>
+
+        <TrustSticker>
+          <TrustText>The Dex You Can Trust</TrustText>
+        </TrustSticker>
 
         <MainContent>
           <Card>
@@ -1090,7 +1128,7 @@ function Swap() {
                 <SwapTokensContainer>
                   <SwapTokensButton
                     onClick={swapTokens}
-                    whileHover={{ scale: 1.05}}
+                    whileHover={{ scale: 1.05 }}
                   >
                     <ArrowLeftRight size={24} />
                   </SwapTokensButton>
