@@ -198,9 +198,9 @@ const Input = styled.input`
 
 const TokenButtonContainer = styled.div`
   display: flex;
-  flex-direction: row; /* تغییر به row برای قرار گرفتن افقی */
-  align-items: center; /* تراز عمودی المان‌ها */
-  gap: 0.5rem; /* فاصله مناسب بین المان‌ها */
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
   margin-left: 0.5rem;
 `;
 
@@ -379,6 +379,109 @@ const CloseButton = styled.button`
   cursor: pointer;
   margin-left: 1rem;
 `;
+
+const AnimationOverlay = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+`;
+
+const SwapAnimation = ({ isSwapping, hasError }) => {
+  const pulseVariants = {
+    initial: { scale: 1, opacity: 0.5 },
+    animate: {
+      scale: 1.2,
+      opacity: 0,
+      transition: { duration: 0.5, repeat: Infinity, ease: "easeOut" },
+    },
+  };
+
+  const heartVariants = {
+    initial: { scale: 1 },
+    animate: hasError
+      ? { scale: 1 } // متوقف کردن انیمیشن در صورت خطا
+      : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
+  };
+
+  return (
+    <AnimationOverlay
+      initial={{ opacity: 0 }}
+      animate={{ opacity: isSwapping ? 1 : 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <motion.div
+          style={{
+            width: "80px",
+            height: "80px",
+            background: "linear-gradient(to right, #10b981, #3b82f6)",
+            borderRadius: "50%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            position: "relative",
+          }}
+          variants={heartVariants}
+          initial="initial"
+          animate="animate"
+        >
+          <HeartPulse size={40} color="white" />
+        </motion.div>
+        <motion.div
+          style={{
+            position: "absolute",
+            width: "80px",
+            height: "80px",
+            border: "2px solid rgba(255, 255, 255, 0.3)",
+            borderRadius: "50%",
+            opacity: 0,
+          }}
+          variants={pulseVariants}
+          initial="initial"
+          animate="animate"
+        />
+        <motion.div
+          style={{
+            position: "absolute",
+            width: "80px",
+            height: "80px",
+            border: "2px solid rgba(255, 255, 255, 0.2)",
+            borderRadius: "50%",
+            opacity: 0,
+          }}
+          variants={pulseVariants}
+          initial="initial"
+          animate="animate"
+          transition={{ delay: 0.2 }}
+        />
+        <motion.p
+          style={{
+            color: "white",
+            marginTop: "1rem",
+            fontSize: "1rem",
+            textShadow: "0 0 5px rgba(0, 0, 0, 0.5)",
+          }}
+        >
+          Swapping in progress...
+        </motion.p>
+      </motion.div>
+    </AnimationOverlay>
+  );
+};
 
 const switchToArbitrum = async (provider) => {
   try {
@@ -1055,6 +1158,8 @@ function Swap() {
             </CloseButton>
           </Notification>
         )}
+
+        <SwapAnimation isSwapping={isSwapping} hasError={!!errorMessage} />
 
         <Footer>
           <FooterText>
