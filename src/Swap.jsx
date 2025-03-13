@@ -173,10 +173,11 @@ const InputContainer = styled.div`
   display: flex;
   align-items: center;
   background: rgba(55, 65, 81, 0.5);
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   border-radius: 0.75rem;
   border: 1px solid rgba(75, 85, 99, 0.5);
   margin-bottom: 0.5rem;
+  height: 4rem;
 `;
 
 const UsdEquivalent = styled.p`
@@ -197,15 +198,16 @@ const Input = styled.input`
 
 const TokenButtonContainer = styled.div`
   display: flex;
-  flex-direction: column; /* تغییر به column برای قرار گرفتن عمودی */
-  align-items: flex-end; /* تراز کردن به سمت راست */
-  gap: 0.25rem; /* فاصله کمتر بین المان‌ها */
+  flex-direction: row; /* تغییر به row برای قرار گرفتن افقی */
+  align-items: center; /* تراز عمودی المان‌ها */
+  gap: 0.5rem; /* فاصله مناسب بین المان‌ها */
   margin-left: 0.5rem;
 `;
 
 const TokenButton = styled.button`
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   background: #4f46e5;
   color: white;
@@ -214,6 +216,7 @@ const TokenButton = styled.button`
   transition: background 0.3s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   border: 1px solid #6366f1;
+  width: 5rem;
   &:hover { background: #4338ca; }
 `;
 
@@ -916,18 +919,16 @@ function Swap() {
                     min="0.01"
                   />
                   <TokenButtonContainer>
+                    {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
                     <TokenButton onClick={() => openModal(true)}>
                       <span>{tokenFrom}</span>
                       <ChevronDown size={16} />
                     </TokenButton>
                     {isConnected && (
-                      <>
-                        <BalanceContainer>
-                          <Wallet size={14} />
-                          <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
-                        </BalanceContainer>
-                        <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>
-                      </>
+                      <BalanceContainer>
+                        <Wallet size={14} />
+                        <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
+                      </BalanceContainer>
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
