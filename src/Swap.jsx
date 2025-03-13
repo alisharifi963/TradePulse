@@ -394,14 +394,7 @@ const AnimationOverlay = styled(motion.div)`
 `;
 
 const SwapAnimation = ({ isSwapping, hasError }) => {
-  const pulseVariants = {
-    initial: { scale: 1, opacity: 0.5 },
-    animate: {
-      scale: 1.2,
-      opacity: 0,
-      transition: { duration: 0.5, repeat: Infinity, ease: "easeOut" },
-    },
-  };
+  console.log("SwapAnimation rendered - isSwapping:", isSwapping, "hasError:", hasError);
 
   const heartVariants = {
     initial: { scale: 1 },
@@ -410,10 +403,10 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
       : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
   };
 
-  return (
+  return isSwapping ? (
     <AnimationOverlay
       initial={{ opacity: 0 }}
-      animate={{ opacity: isSwapping ? 1 : 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
@@ -433,7 +426,6 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            position: "relative",
           }}
           variants={heartVariants}
           initial="initial"
@@ -441,33 +433,6 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
         >
           <HeartPulse size={40} color="white" />
         </motion.div>
-        <motion.div
-          style={{
-            position: "absolute",
-            width: "80px",
-            height: "80px",
-            border: "2px solid rgba(255, 255, 255, 0.3)",
-            borderRadius: "50%",
-            opacity: 0,
-          }}
-          variants={pulseVariants}
-          initial="initial"
-          animate="animate"
-        />
-        <motion.div
-          style={{
-            position: "absolute",
-            width: "80px",
-            height: "80px",
-            border: "2px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "50%",
-            opacity: 0,
-          }}
-          variants={pulseVariants}
-          initial="initial"
-          animate="animate"
-          transition={{ delay: 0.2 }}
-        />
         <motion.p
           style={{
             color: "white",
@@ -480,7 +445,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
         </motion.p>
       </motion.div>
     </AnimationOverlay>
-  );
+  ) : null;
 };
 
 const switchToArbitrum = async (provider) => {
@@ -513,6 +478,8 @@ const switchToArbitrum = async (provider) => {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function Swap() {
+  console.log("Swap component rendered");
+
   let abortController = new AbortController();
 
   const [tokenFrom, setTokenFrom] = useState("ETH");
@@ -539,6 +506,7 @@ function Swap() {
   const [gasEstimate, setGasEstimate] = useState(null);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
+    console.log("Fetching balance for:", tokenSymbol);
     if (!userAddress || !provider) return "0";
     try {
       const tokenAddress = tokenAddresses[tokenSymbol];
@@ -569,6 +537,7 @@ function Swap() {
   }, [isConnected, address, provider, tokenFrom, tokenTo]);
 
   useEffect(() => {
+    console.log("Effect triggered for fetchBestRate");
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
     } else if (amountFrom && Number(amountFrom) <= 0) {
@@ -581,6 +550,7 @@ function Swap() {
   }, [amountFrom, tokenFrom, tokenTo]);
 
   const fetchBestRate = async () => {
+    console.log("Fetching best rate...");
     try {
       setIsPriceRouteReady(false);
       const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
@@ -650,6 +620,7 @@ function Swap() {
   };
 
   const estimateGas = async () => {
+    console.log("Estimating gas...");
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
@@ -671,6 +642,7 @@ function Swap() {
   }, [isPriceRouteReady]);
 
   const checkAndApproveToken = async () => {
+    console.log("Checking and approving token...");
     const srcTokenAddress = tokenAddresses[tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
       console.log("No approval needed for native token (ETH).");
@@ -723,6 +695,7 @@ function Swap() {
   };
 
   const buildTransaction = async () => {
+    console.log("Building transaction...");
     if (!priceRoute || !isConnected) {
       throw new Error("Cannot build transaction: priceRoute or wallet connection missing");
     }
@@ -777,6 +750,7 @@ function Swap() {
   };
 
   const handleSwap = async () => {
+    console.log("Handling swap...");
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
       setIsNotificationVisible(true);
@@ -870,6 +844,7 @@ function Swap() {
   };
 
   const handleConnect = async () => {
+    console.log("Connecting wallet...");
     try {
       if (window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -910,6 +885,7 @@ function Swap() {
   };
 
   const searchToken = async () => {
+    console.log("Searching token...");
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
       setIsNotificationVisible(true);
