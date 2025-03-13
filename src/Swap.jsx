@@ -151,13 +151,13 @@ const ConnectButton = styled(motion.button)`
 
 const TrustSticker = styled.div`
   position: absolute;
-  top: 5rem; /* پایین‌تر آوردن برچسب */
+  top: 5rem;
   left: 2rem;
-  background: #f0e4d7; /* رنگ کرم روشن */
+  background: #f0e4d7;
   padding: 0.5rem 1rem;
   border: 1px solid #d1d5db;
-  box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3); /* سایه پررنگ‌تر */
-  transform: rotate(-7deg); /* زاویه کج‌تر */
+  box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+  transform: rotate(-7deg);
   z-index: 10;
   clip-path: polygon(
     0% 0%,
@@ -202,7 +202,7 @@ const TrustSticker = styled.div`
     10% 97%,
     5% 99%,
     0% 100%
-  ); /* لبه‌های بریده‌بریده */
+  );
 `;
 
 const TrustText = styled.p`
@@ -488,7 +488,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
         style={{
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
+          alignItems: "center"
         }}
       >
         <motion.div
@@ -499,7 +499,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             borderRadius: "50%",
             display: "flex",
             justifyContent: "center",
-            alignItems: "center",
+            alignItems: "center"
           }}
           variants={heartVariants}
           initial="initial"
@@ -512,7 +512,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             color: "white",
             marginTop: "1rem",
             fontSize: "1rem",
-            textShadow: "0 0 5px rgba(0, 0, 0, 0.5)",
+            textShadow: "0 0 5px rgba(0, 0, 0, 0.5)"
           }}
         >
           Swapping in progress...
@@ -531,15 +531,15 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     <motion.div
       style={{
         position: "fixed",
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: "flex";
-        justifyContent: "center";
-        alignItems: "center";
-        zIndex: 101;
-        pointerEvents: "auto";
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 101,
+        pointerEvents: "auto"
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -559,7 +559,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           gap: "0.5rem",
           maxWidth: "400px",
           textAlign: "center",
-          wordBreak: "break-word",
+          wordBreak: "break-word"
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -579,7 +579,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
             padding: "0.25rem 0.5rem",
             borderRadius: "0.25rem",
             cursor: "pointer",
-            marginTop: "0.5rem",
+            marginTop: "0.5rem"
           }}
         >
           OK
@@ -1195,7 +1195,7 @@ function Swap() {
                         <span>{parseFloat(tokenToBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </TokenButtonContainer>
+                  </InputContainer>
                 </InputContainer>
                 <UsdEquivalent>{/* معادل دلاری برای tokenTo می‌تونی بعداً اضافه کنی */}</UsdEquivalent>
 
