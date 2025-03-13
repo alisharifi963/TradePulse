@@ -455,42 +455,56 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     <motion.div
       style={{
         position: "fixed",
-        top: "50%", // تغییر به 50% برای وسط عمودی
-        left: "50%",
-        transform: "translate(-50%, -50%)", // وسط‌چین کردن هم در محور X و هم Y
-        background,
-        color: "white",
-        padding: "1rem 2rem",
-        borderRadius: "0.5rem",
-        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
-        zIndex: 101,
-        display: "flex",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: "flex", // استفاده از flex برای وسط‌چین کردن
+        justifyContent: "center",
         alignItems: "center",
-        gap: "0.5rem",
-        maxWidth: "90%",
-        textAlign: "center",
+        zIndex: 101,
       }}
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0, opacity: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
-      <span>{message}</span>
-      <button
-        onClick={onClose}
+      <motion.div
         style={{
-          background: "rgba(255, 255, 255, 0.2)",
+          background,
           color: "white",
-          border: "none",
-          padding: "0.25rem 0.5rem",
-          borderRadius: "0.25rem",
-          marginLeft: "1rem",
-          cursor: "pointer",
+          padding: "1rem 2rem",
+          borderRadius: "0.5rem",
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          maxWidth: "500px", // عرض حداکثری برای جلوگیری از پهن شدن بیش از حد
+          textAlign: "center",
+          wordBreak: "break-all", // شکستن متن طولانی
         }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0, opacity: 0 }}
+        transition={{ duration: 0.3 }}
       >
-        OK
-      </button>
+        {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+        <span>{message}</span>
+        <button
+          onClick={onClose}
+          style={{
+            background: "rgba(255, 255, 255, 0.2)",
+            color: "white",
+            border: "none",
+            padding: "0.25rem 0.5rem",
+            borderRadius: "0.25rem",
+            marginLeft: "1rem",
+            cursor: "pointer",
+          }}
+        >
+          OK
+        </button>
+      </motion.div>
     </motion.div>
   );
 };
@@ -703,7 +717,7 @@ function Swap() {
       const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (network.chainId !==  Happened42161n) {
+      if (network.chainId !== 42161n) {
         console.log("Switching to Arbitrum network...");
         await switchToArbitrum(window.ethereum);
       }
@@ -1061,7 +1075,7 @@ function Swap() {
                         <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </TokenButtonContainer>
+                  </InputContainer>
                 </InputContainer>
                 <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
