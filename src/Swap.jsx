@@ -455,9 +455,9 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     <motion.div
       style={{
         position: "fixed",
-        top: "40%",
+        top: "50%", // تغییر به 50% برای وسط عمودی
         left: "50%",
-        transform: "translateX(-50%)",
+        transform: "translate(-50%, -50%)", // وسط‌چین کردن هم در محور X و هم Y
         background,
         color: "white",
         padding: "1rem 2rem",
@@ -703,7 +703,7 @@ function Swap() {
       const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (network.chainId !== 42161n) {
+      if (network.chainId !==  Happened42161n) {
         console.log("Switching to Arbitrum network...");
         await switchToArbitrum(window.ethereum);
       }
