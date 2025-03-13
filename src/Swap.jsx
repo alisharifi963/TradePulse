@@ -173,10 +173,11 @@ const InputContainer = styled.div`
   display: flex;
   align-items: center;
   background: rgba(55, 65, 81, 0.5);
-  padding: 1rem;
+  padding: 0.75rem 1rem; /* کاهش padding برای متعادل شدن */
   border-radius: 0.75rem;
   border: 1px solid rgba(75, 85, 99, 0.5);
   margin-bottom: 0.5rem;
+  height: 4rem; /* تنظیم ارتفاع ثابت */
 `;
 
 const UsdEquivalent = styled.p`
@@ -197,15 +198,16 @@ const Input = styled.input`
 
 const TokenButtonContainer = styled.div`
   display: flex;
-  flex-direction: column; /* تغییر به column برای قرار گرفتن عمودی */
-  align-items: flex-end; /* تراز کردن به سمت راست */
-  gap: 0.25rem; /* فاصله کمتر بین المان‌ها */
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem; /* کاهش فاصله بین المان‌ها */
   margin-left: 0.5rem;
 `;
 
 const TokenButton = styled.button`
   display: flex;
   align-items: center;
+  justify-content: center; /* متعادل کردن محتوا */
   gap: 0.5rem;
   background: #4f46e5;
   color: white;
@@ -214,6 +216,7 @@ const TokenButton = styled.button`
   transition: background 0.3s;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   border: 1px solid #6366f1;
+  width: 5rem; /* تنظیم عرض ثابت */
   &:hover { background: #4338ca; }
 `;
 
