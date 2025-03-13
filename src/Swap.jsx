@@ -116,7 +116,7 @@ const Header = styled.header`
   align-items: center;
   background: rgba(31, 41, 55, 0.5);
   backdrop-filter: blur(10px);
-  position: relative; /* برای قرار گرفتن چسب نسبت به هدر */
+  position: relative;
 `;
 
 const HeaderTitle = styled.div`
@@ -126,7 +126,7 @@ const HeaderTitle = styled.div`
 `;
 
 const BetaTag = styled.span`
-  font-size: 1rem; /* 8px کوچک‌تر از TradePulse Swap */
+  font-size: 1rem;
   font-weight: 500;
   color: #3b82f6;
   background: rgba(59, 130, 246, 0.1);
@@ -151,15 +151,58 @@ const ConnectButton = styled(motion.button)`
 
 const TrustSticker = styled.div`
   position: absolute;
-  top: 4rem;
+  top: 5rem; /* پایین‌تر آوردن برچسب */
   left: 2rem;
-  background: #f5f5f5;
+  background: #f0e4d7; /* رنگ کرم روشن */
   padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
   border: 1px solid #d1d5db;
-  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-  transform: rotate(-5deg);
+  box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3); /* سایه پررنگ‌تر */
+  transform: rotate(-7deg); /* زاویه کج‌تر */
   z-index: 10;
+  clip-path: polygon(
+    0% 0%,
+    5% 2%,
+    10% 0%,
+    15% 3%,
+    20% 1%,
+    25% 4%,
+    30% 2%,
+    35% 0%,
+    40% 3%,
+    45% 1%,
+    50% 4%,
+    55% 2%,
+    60% 0%,
+    65% 3%,
+    70% 1%,
+    75% 4%,
+    80% 2%,
+    85% 0%,
+    90% 3%,
+    95% 1%,
+    100% 0%,
+    100% 100%,
+    95% 98%,
+    90% 100%,
+    85% 97%,
+    80% 99%,
+    75% 96%,
+    70% 98%,
+    65% 100%,
+    60% 97%,
+    55% 99%,
+    50% 96%,
+    45% 98%,
+    40% 100%,
+    35% 97%,
+    30% 99%,
+    25% 96%,
+    20% 98%,
+    15% 100%,
+    10% 97%,
+    5% 99%,
+    0% 100%
+  ); /* لبه‌های بریده‌بریده */
 `;
 
 const TrustText = styled.p`
@@ -488,15 +531,15 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     <motion.div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 101,
-        pointerEvents: "auto",
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: "flex";
+        justifyContent: "center";
+        alignItems: "center";
+        zIndex: 101;
+        pointerEvents: "auto";
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -1121,7 +1164,7 @@ function Swap() {
                         <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </TokenButtonContainer>
+                  </InputContainer>
                 </InputContainer>
                 <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
