@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ChevronDown, X, HeartPulse, ArrowLeftRight, Wallet } from "lucide-react";
+import { ChevronDown, X, HeartPulse, ArrowLeftRight, Wallet, CheckCircle, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
@@ -394,8 +394,6 @@ const AnimationOverlay = styled(motion.div)`
 `;
 
 const SwapAnimation = ({ isSwapping, hasError }) => {
-  console.log("SwapAnimation rendered - isSwapping:", isSwapping, "hasError:", hasError);
-
   const heartVariants = {
     initial: { scale: 1 },
     animate: hasError
@@ -448,6 +446,55 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
   ) : null;
 };
 
+const SwapNotification = ({ message, isSuccess, onClose }) => {
+  const background = isSuccess
+    ? "linear-gradient(to right, #10b981, #3b82f6)"
+    : "linear-gradient(to right, #ef4444, #b91c1c)";
+
+  return (
+    <motion.div
+      style={{
+        position: "fixed",
+        top: "40%",
+        left: "50%",
+        transform: "translateX(-50%)",
+        background,
+        color: "white",
+        padding: "1rem 2rem",
+        borderRadius: "0.5rem",
+        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
+        zIndex: 101,
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        maxWidth: "90%",
+        textAlign: "center",
+      }}
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0, opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+      <span>{message}</span>
+      <button
+        onClick={onClose}
+        style={{
+          background: "rgba(255, 255, 255, 0.2)",
+          color: "white",
+          border: "none",
+          padding: "0.25rem 0.5rem",
+          borderRadius: "0.25rem",
+          marginLeft: "1rem",
+          cursor: "pointer",
+        }}
+      >
+        OK
+      </button>
+    </motion.div>
+  );
+};
+
 const switchToArbitrum = async (provider) => {
   try {
     await provider.request({
@@ -478,8 +525,6 @@ const switchToArbitrum = async (provider) => {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function Swap() {
-  console.log("Swap component rendered");
-
   let abortController = new AbortController();
 
   const [tokenFrom, setTokenFrom] = useState("ETH");
@@ -504,9 +549,9 @@ function Swap() {
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
+  const [swapNotification, setSwapNotification] = useState(null);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-    console.log("Fetching balance for:", tokenSymbol);
     if (!userAddress || !provider) return "0";
     try {
       const tokenAddress = tokenAddresses[tokenSymbol];
@@ -537,7 +582,6 @@ function Swap() {
   }, [isConnected, address, provider, tokenFrom, tokenTo]);
 
   useEffect(() => {
-    console.log("Effect triggered for fetchBestRate");
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
     } else if (amountFrom && Number(amountFrom) <= 0) {
@@ -550,7 +594,6 @@ function Swap() {
   }, [amountFrom, tokenFrom, tokenTo]);
 
   const fetchBestRate = async () => {
-    console.log("Fetching best rate...");
     try {
       setIsPriceRouteReady(false);
       const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
@@ -575,11 +618,15 @@ function Swap() {
         const parsedError = JSON.parse(errorText);
 
         if (parsedError.error === "ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT") {
-          alert(`⚠️ Price impact too high! Reduce the amount.`);
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
           setPriceRoute(null);
           setUsdEquivalent("");
+          setSwapNotification({
+            message: "Price impact too high! Reduce the amount.",
+            isSuccess: false,
+          });
+          setTimeout(() => setSwapNotification(null), 3000);
           return;
         }
 
@@ -615,12 +662,15 @@ function Swap() {
       setBestDex("Error fetching rate");
       setPriceRoute(null);
       setUsdEquivalent("");
-      alert(`Error fetching rate: ${error.message}`);
+      setSwapNotification({
+        message: `Error fetching rate: ${error.message}`,
+        isSuccess: false,
+      });
+      setTimeout(() => setSwapNotification(null), 3000);
     }
   };
 
   const estimateGas = async () => {
-    console.log("Estimating gas...");
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
@@ -642,7 +692,6 @@ function Swap() {
   }, [isPriceRouteReady]);
 
   const checkAndApproveToken = async () => {
-    console.log("Checking and approving token...");
     const srcTokenAddress = tokenAddresses[tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
       console.log("No approval needed for native token (ETH).");
@@ -689,13 +738,12 @@ function Swap() {
       console.error("Approval failed:", error);
       setErrorMessage(`Token approval failed: ${error.message}`);
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
       throw error;
     }
   };
 
   const buildTransaction = async () => {
-    console.log("Building transaction...");
     if (!priceRoute || !isConnected) {
       throw new Error("Cannot build transaction: priceRoute or wallet connection missing");
     }
@@ -744,31 +792,30 @@ function Swap() {
       console.error("Error building transaction:", error);
       setErrorMessage(`Transaction build failed: ${error.message}`);
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
       throw error;
     }
   };
 
   const handleSwap = async () => {
-    console.log("Handling swap...");
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
 
     if (!amountFrom || Number(amountFrom) <= 0) {
       setErrorMessage("Please enter a valid amount to swap!");
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
 
     if (!isPriceRouteReady) {
       setErrorMessage("Price route not ready. Please wait or try again.");
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
 
@@ -818,12 +865,19 @@ function Swap() {
       const receipt = await tx.wait();
       console.log("Swap transaction confirmed on-chain:", receipt.transactionHash);
 
-      alert(`Swap successful! Tx Hash: ${tx.hash}`);
+      setSwapNotification({
+        message: `Swap successful! Tx Hash: ${tx.hash}`,
+        isSuccess: true,
+      });
+      setTimeout(() => setSwapNotification(null), 3000);
     } catch (error) {
       console.error("Swap error:", error);
       setErrorMessage(`Swap failed: ${error.message}`);
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setSwapNotification({
+        message: `Swap failed: ${error.message}`,
+        isSuccess: false,
+      });
+      setTimeout(() => setSwapNotification(null), 3000);
     } finally {
       setIsSwapping(false);
     }
@@ -844,7 +898,6 @@ function Swap() {
   };
 
   const handleConnect = async () => {
-    console.log("Connecting wallet...");
     try {
       if (window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
@@ -865,13 +918,13 @@ function Swap() {
       } else {
         setErrorMessage("MetaMask is not installed!");
         setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 5000);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     } catch (error) {
       console.error("Connection error:", error);
       setErrorMessage(`Failed to connect wallet: ${error.message}`);
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
     }
   };
 
@@ -885,11 +938,10 @@ function Swap() {
   };
 
   const searchToken = async () => {
-    console.log("Searching token...");
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
 
@@ -901,7 +953,7 @@ function Swap() {
             "Connected to wrong network. Please switch to Arbitrum (chain ID 42161)."
           );
           setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 5000);
+          setTimeout(() => setIsNotificationVisible(false), 3000);
           await switchToArbitrum(provider);
           return;
         }
@@ -929,12 +981,12 @@ function Swap() {
         console.error("Error fetching token:", error);
         setErrorMessage(`Failed to fetch token: ${error.message}`);
         setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 5000);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     } else {
       setErrorMessage("Invalid contract address");
       setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 5000);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
     }
   };
 
@@ -1136,6 +1188,14 @@ function Swap() {
         )}
 
         <SwapAnimation isSwapping={isSwapping} hasError={!!errorMessage} />
+
+        {swapNotification && (
+          <SwapNotification
+            message={swapNotification.message}
+            isSuccess={swapNotification.isSuccess}
+            onClose={() => setSwapNotification(null)}
+          />
+        )}
 
         <Footer>
           <FooterText>
