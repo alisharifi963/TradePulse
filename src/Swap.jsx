@@ -145,8 +145,27 @@ const ConnectButton = styled(motion.button)`
   border-radius: 0.5rem;
   font-weight: 600;
   margin-left: 1rem;
-  margin-right: 1.5rem;
   &:hover { background: #059669; }
+`;
+
+// استایل جدید برای نشانگر شبکه
+const NetworkIndicator = styled.div`
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+`;
+
+const WalletContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 1.5rem;
 `;
 
 const TrustSticker = styled.div`
@@ -488,7 +507,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
         style={{
           display: "flex",
           flexDirection: "column",
-          alignItems: "center"
+          alignItems: "center",
         }}
       >
         <motion.div
@@ -499,7 +518,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             borderRadius: "50%",
             display: "flex",
             justifyContent: "center",
-            alignItems: "center"
+            alignItems: "center",
           }}
           variants={heartVariants}
           initial="initial"
@@ -512,7 +531,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             color: "white",
             marginTop: "1rem",
             fontSize: "1rem",
-            textShadow: "0 0 5px rgba(0, 0, 0, 0.5)"
+            textShadow: "0 0 5px rgba(0, 0, 0, 0.5)",
           }}
         >
           Swapping in progress...
@@ -539,7 +558,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         justifyContent: "center",
         alignItems: "center",
         zIndex: 101,
-        pointerEvents: "auto"
+        pointerEvents: "auto",
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -559,7 +578,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           gap: "0.5rem",
           maxWidth: "400px",
           textAlign: "center",
-          wordBreak: "break-word"
+          wordBreak: "break-word",
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -579,7 +598,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
             padding: "0.25rem 0.5rem",
             borderRadius: "0.25rem",
             cursor: "pointer",
-            marginTop: "0.5rem"
+            marginTop: "0.5rem",
           }}
         >
           OK
@@ -644,6 +663,8 @@ function Swap() {
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
+  // اضافه کردن state برای شبکه فعلی
+  const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -1125,14 +1146,19 @@ function Swap() {
             </h1>
             <BetaTag>Beta</BetaTag>
           </HeaderTitle>
-          <ConnectButton
-            onClick={isConnected ? disconnectWallet : handleConnect}
-            whileHover={{ scale: 1.05 }}
-          >
-            {isConnected
-              ? `${address.slice(0, 6)}...${address.slice(-4)}`
-              : "Connect Wallet"}
-          </ConnectButton>
+          <WalletContainer>
+            <NetworkIndicator>
+              <span>{currentNetwork}</span>
+            </NetworkIndicator>
+            <ConnectButton
+              onClick={isConnected ? disconnectWallet : handleConnect}
+              whileHover={{ scale: 1.05 }}
+            >
+              {isConnected
+                ? `${address.slice(0, 6)}...${address.slice(-4)}`
+                : "Connect Wallet"}
+            </ConnectButton>
+          </WalletContainer>
         </Header>
 
         <TrustSticker>
