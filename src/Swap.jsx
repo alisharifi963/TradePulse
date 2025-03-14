@@ -504,8 +504,8 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
       <motion.div
         style={{
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
+          flex-direction: "column",
+          align-items: "center",
         }}
       >
         <motion.div
@@ -553,8 +553,8 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         right: 0,
         bottom: 0,
         display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        justify-content: "center",
+        align-items: "center",
         zIndex: 101,
         pointerEvents: "auto",
       }}
@@ -662,8 +662,6 @@ function Swap() {
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
-  // اضافه کردن state برای قیمت USD
-  const [ethPriceInUSD, setEthPriceInUSD] = useState(null);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -682,24 +680,6 @@ function Swap() {
       return "0";
     }
   };
-
-  // تابع برای دریافت قیمت لحظه‌ای ETH به USD
-  const fetchEthPrice = async () => {
-    try {
-      const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
-      const data = await response.json();
-      setEthPriceInUSD(data.ethereum.usd);
-    } catch (error) {
-      console.error("Error fetching ETH price:", error);
-      setEthPriceInUSD(null); // در صورت خطا، مقدار را null می‌گذاریم
-    }
-  };
-
-  useEffect(() => {
-    fetchEthPrice(); // بار اول قیمت را دریافت می‌کنیم
-    const interval = setInterval(fetchEthPrice, 10000); // هر 10 ثانیه قیمت را به‌روزرسانی می‌کنیم
-    return () => clearInterval(interval); // پاک کردن interval هنگام unmount
-  }, []);
 
   useEffect(() => {
     const updateBalances = async () => {
@@ -805,7 +785,7 @@ function Swap() {
   };
 
   const estimateGas = async () => {
-    if (signer && priceRoute && ethPriceInUSD) {
+    if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
         const gas = await signer.estimateGas({
@@ -816,26 +796,25 @@ function Swap() {
 
         // تبدیل Gwei به ETH
         const gasInWei = ethers.toBigInt(gas.toString());
-        const gasInEth = ethers.formatEther(gasInWei); // تبدیل Wei به ETH
-        const gasInGwei = ethers.formatUnits(gasInWei, "gwei"); // مقدار فعلی Gwei
+        const gasInEth = ethers.formatEther(gasInWei);
+        const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
 
-        // تبدیل ETH به USD
+        // استفاده از priceRoute.srcUSD برای تبدیل به دلار
+        // فرض می‌کنیم srcUSD قیمت هر واحد توکن منبع (مثل ETH) به دلار هست
+        const ethPriceInUSD = priceRoute.srcUSD || 1; // اگر srcUSD موجود نبود، 1 رو فرض می‌کنیم (برای تست)
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
-        // ذخیره مقدار Gwei و USD
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
       } catch (error) {
         console.error("Error estimating gas:", error);
         setGasEstimate({ gwei: "Unable to estimate", usd: "N/A" });
       }
-    } else if (!ethPriceInUSD) {
-      setGasEstimate({ gwei: "Calculating...", usd: "Fetching price..." });
     }
   };
 
   useEffect(() => {
     if (isPriceRouteReady) estimateGas();
-  }, [isPriceRouteReady, ethPriceInUSD]);
+  }, [isPriceRouteReady]);
 
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[tokenFrom];
