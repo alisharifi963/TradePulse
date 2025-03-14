@@ -144,11 +144,9 @@ const ConnectButton = styled(motion.button)`
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-weight: 600;
-  margin-left: 1rem;
   &:hover { background: #059669; }
 `;
 
-// استایل جدید برای نشانگر شبکه
 const NetworkIndicator = styled.div`
   background: rgba(59, 130, 246, 0.2);
   color: #3b82f6;
@@ -570,22 +568,22 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           background,
           color: "white",
           padding: "1rem 2rem",
-          borderRadius: "0.5rem",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
+          border-radius: "0.5rem",
+          box-shadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
+          flex-direction: "column",
+          align-items: "center",
           gap: "0.5rem",
-          maxWidth: "400px",
-          textAlign: "center",
-          wordBreak: "break-word",
+          max-width: "400px",
+          text-align: "center",
+          word-break: "break-word",
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div style={{ display: "flex", align-items: "center", gap: "0.5rem" }}>
           {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
           <span>{message}</span>
         </div>
@@ -596,9 +594,9 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
             color: "white",
             border: "none",
             padding: "0.25rem 0.5rem",
-            borderRadius: "0.25rem",
+            border-radius: "0.25rem",
             cursor: "pointer",
-            marginTop: "0.5rem",
+            margin-top: "0.5rem",
           }}
         >
           OK
@@ -663,8 +661,9 @@ function Swap() {
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
-  // اضافه کردن state برای شبکه فعلی
   const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
+  // اضافه کردن state برای قیمت USD
+  const [ethPriceInUSD, setEthPriceInUSD] = useState(null);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -683,6 +682,24 @@ function Swap() {
       return "0";
     }
   };
+
+  // تابع برای دریافت قیمت لحظه‌ای ETH به USD
+  const fetchEthPrice = async () => {
+    try {
+      const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+      const data = await response.json();
+      setEthPriceInUSD(data.ethereum.usd);
+    } catch (error) {
+      console.error("Error fetching ETH price:", error);
+      setEthPriceInUSD(null); // در صورت خطا، مقدار را null می‌گذاریم
+    }
+  };
+
+  useEffect(() => {
+    fetchEthPrice(); // بار اول قیمت را دریافت می‌کنیم
+    const interval = setInterval(fetchEthPrice, 10000); // هر 10 ثانیه قیمت را به‌روزرسانی می‌کنیم
+    return () => clearInterval(interval); // پاک کردن interval هنگام unmount
+  }, []);
 
   useEffect(() => {
     const updateBalances = async () => {
@@ -788,7 +805,7 @@ function Swap() {
   };
 
   const estimateGas = async () => {
-    if (signer && priceRoute) {
+    if (signer && priceRoute && ethPriceInUSD) {
       try {
         const txParams = await buildTransaction();
         const gas = await signer.estimateGas({
@@ -796,17 +813,29 @@ function Swap() {
           data: txParams.data,
           value: txParams.value || 0,
         });
-        setGasEstimate(ethers.formatUnits(gas, "gwei"));
+
+        // تبدیل Gwei به ETH
+        const gasInWei = ethers.toBigInt(gas.toString());
+        const gasInEth = ethers.formatEther(gasInWei); // تبدیل Wei به ETH
+        const gasInGwei = ethers.formatUnits(gasInWei, "gwei"); // مقدار فعلی Gwei
+
+        // تبدیل ETH به USD
+        const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
+
+        // ذخیره مقدار Gwei و USD
+        setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
       } catch (error) {
         console.error("Error estimating gas:", error);
-        setGasEstimate("Unable to estimate");
+        setGasEstimate({ gwei: "Unable to estimate", usd: "N/A" });
       }
+    } else if (!ethPriceInUSD) {
+      setGasEstimate({ gwei: "Calculating...", usd: "Fetching price..." });
     }
   };
 
   useEffect(() => {
     if (isPriceRouteReady) estimateGas();
-  }, [isPriceRouteReady]);
+  }, [isPriceRouteReady, ethPriceInUSD]);
 
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[tokenFrom];
@@ -1240,7 +1269,9 @@ function Swap() {
                 <RateInfo>
                   Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span>
                 </RateInfo>
-                <RateInfo>Estimated Gas: {gasEstimate ? `${gasEstimate} Gwei` : "Calculating..."}</RateInfo>
+                <RateInfo>
+                  Estimated Gas: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}
+                </RateInfo>
 
                 <SwapButton
                   onClick={handleSwap}
