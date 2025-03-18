@@ -541,7 +541,7 @@ function Swap() {
 
   const [tokenFrom, setTokenFrom] = useState("ETH");
   const [tokenTo, setTokenTo] = useState("USDC");
-  const [amountFrom, setAmountFrom] = useState("0.01");
+  const [amountFrom, setAmountFrom] = useState("0.001");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -563,7 +563,6 @@ function Swap() {
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
-  const [tokenPriceInUSDC, setTokenPriceInUSDC] = useState(null);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -607,40 +606,6 @@ function Swap() {
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
-  const fetchTokenPriceInUSDC = async (tokenSymbol) => {
-    if (tokenSymbol === "USDC") return 1; // نرخ USDC به USDC همیشه 1 است
-    try {
-      const response = await fetch(
-        `${apiUrl}/prices?srcToken=${tokenAddresses[tokenSymbol]}&destToken=${tokenAddresses["USDC"]}&amount=1&srcDecimals=${tokenDecimals[tokenSymbol]}&destDecimals=6&side=SELL&network=42161`,
-        { signal: abortController.signal }
-      );
-      const data = await response.json();
-      if (data.priceRoute) {
-        return ethers.formatUnits(data.priceRoute.destAmount, 6); // نرخ به USDC
-      } else {
-        return "N/A";
-      }
-    } catch (error) {
-      console.error(`Error fetching price for ${tokenSymbol}:`, error);
-      return "N/A";
-    }
-  };
-
-  useEffect(() => {
-    const updateTokenPrice = async () => {
-      const price = await fetchTokenPriceInUSDC(tokenFrom);
-      setTokenPriceInUSDC(price);
-      if (price !== "N/A" && amountFrom) {
-        const amount = Number(amountFrom || 0);
-        const usdcValue = (amount * Number(price)).toFixed(2);
-        setUsdcEquivalent(`≈ ${usdcValue} USDC`);
-      } else {
-        setUsdcEquivalent("N/A");
-      }
-    };
-    updateTokenPrice();
-  }, [tokenFrom, amountFrom]);
-
   const fetchBestRate = async () => {
     try {
       setIsPriceRouteReady(false);
@@ -681,11 +646,26 @@ function Swap() {
         setAmountTo(formattedAmountTo);
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
+
+        // محاسبه نرخ لحظه‌ای به USDC
+        const amountFromInWeiForRate = ethers.parseUnits("1", tokenDecimals[tokenFrom]); // نرخ برای 1 واحد
+        const responseForRate = await fetch(
+          `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${tokenAddresses["USDC"]}&amount=${amountFromInWeiForRate.toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=6&side=SELL&network=42161`,
+          { signal: abortController.signal }
+        );
+        const rateData = await responseForRate.json();
+        if (rateData.priceRoute) {
+          const usdcRate = ethers.formatUnits(rateData.priceRoute.destAmount, 6);
+          const usdcValue = (Number(amountFrom) * Number(usdcRate)).toFixed(6);
+          setUsdcEquivalent(`≈ ${usdcValue} USDC`);
+        } else {
+          setUsdcEquivalent("N/A");
+        }
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
         setPriceRoute(null);
-        setUsdcEquivalent("");
+        setUsdcEquivalent("N/A");
       }
     } catch (error) {
       if (error.name === "AbortError") return;
@@ -693,7 +673,7 @@ function Swap() {
       setAmountTo("");
       setBestDex("Error fetching rate");
       setPriceRoute(null);
-      setUsdcEquivalent("");
+      setUsdcEquivalent("N/A");
       setSwapNotification({ message: `Error fetching rate: ${error.message}`, isSuccess: false });
       setTimeout(() => setSwapNotification(null), 3000);
     }
@@ -977,7 +957,7 @@ function Swap() {
                     placeholder="Amount to sell"
                     value={amountFrom}
                     onChange={(e) => setAmountFrom(e.target.value || "")}
-                    min="0.01"
+                    min="0.001"
                   />
                   <TokenButtonContainer>
                     {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
