@@ -646,7 +646,7 @@ function Swap() {
       }
 
       const data = await response.json();
-      console.log("API Response:", data); // برای دیباگ
+      console.log("API Response:", data); // دیباگ
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
         setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
@@ -654,7 +654,8 @@ function Swap() {
         setIsPriceRouteReady(true);
 
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-        const usdPrice = data.priceRoute.srcUSD; // نرخ هر واحد توکن به دلار
+        const usdPrice = data.priceRoute.srcUSD || 1; // استفاده از نرخ پیش‌فرض 1 اگه srcUSD مشکل داشت
+        console.log("USD Price:", usdPrice); // دیباگ نرخ
         if (usdPrice) {
           const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
           setUsdEquivalent(`≈ $${usdValue} USD`);
@@ -683,18 +684,19 @@ function Swap() {
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
+        console.log("Transaction Params:", txParams); // دیباگ
         const gas = await signer.estimateGas({
           to: txParams.to,
           data: txParams.data,
           value: txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n,
-          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 1000000n, // افزایش gasLimit پیش‌فرض
+          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 2000000n, // افزایش بیشتر gasLimit
         });
 
         const gasInWei = ethers.toBigInt(gas.toString());
         const gasInEth = ethers.formatEther(gasInWei);
         const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
 
-        const ethPriceInUSD = priceRoute.srcUSD || 1000; // نرخ پیش‌فرض برای ETH (می‌تونی با API واقعی جایگزین کنی)
+        const ethPriceInUSD = 1000; // نرخ پیش‌فرض برای ETH (می‌تونی با API واقعی جایگزین کنی)
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -765,7 +767,7 @@ function Swap() {
     });
 
     const responseData = await response.json();
-    console.log("Transaction Data:", responseData); // برای دیباگ
+    console.log("Transaction Data:", responseData); // دیباگ
     if (!response.ok) throw new Error(`Transaction build failed with status ${response.status}: ${responseData.error || "Unknown error"}`);
     if (!responseData.to || !responseData.data) throw new Error("Invalid transaction data from API");
     return responseData;
