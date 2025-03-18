@@ -539,9 +539,9 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function Swap() {
   const abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("ETH");
-  const [tokenTo, setTokenTo] = useState("USDC");
-  const [amountFrom, setAmountFrom] = useState("0.001");
+  const [tokenFrom, setTokenFrom] = useState("USDC");
+  const [tokenTo, setTokenTo] = useState("ETH");
+  const [amountFrom, setAmountFrom] = useState("5");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -557,7 +557,7 @@ function Swap() {
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [usdcEquivalent, setUsdcEquivalent] = useState("");
+  const [usdEquivalent, setUsdEquivalent] = useState("");
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
@@ -602,7 +602,7 @@ function Swap() {
       setBestDex("Enter a valid amount greater than 0");
       setPriceRoute(null);
       setIsPriceRouteReady(false);
-      setUsdcEquivalent("");
+      setUsdEquivalent("");
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
@@ -614,7 +614,7 @@ function Swap() {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
         setPriceRoute(null);
-        setUsdcEquivalent("");
+        setUsdEquivalent("");
         return;
       }
 
@@ -630,7 +630,7 @@ function Swap() {
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
           setPriceRoute(null);
-          setUsdcEquivalent("");
+          setUsdEquivalent("");
           setSwapNotification({ message: "Price impact too high! Reduce the amount.", isSuccess: false });
           setTimeout(() => setSwapNotification(null), 3000);
           return;
@@ -647,25 +647,21 @@ function Swap() {
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
-        // محاسبه نرخ لحظه‌ای به USDC
-        const amountFromInWeiForRate = ethers.parseUnits("1", tokenDecimals[tokenFrom]); // نرخ برای 1 واحد
-        const responseForRate = await fetch(
-          `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${tokenAddresses["USDC"]}&amount=${amountFromInWeiForRate.toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=6&side=SELL&network=42161`,
-          { signal: abortController.signal }
-        );
-        const rateData = await responseForRate.json();
-        if (rateData.priceRoute) {
-          const usdcRate = ethers.formatUnits(rateData.priceRoute.destAmount, 6);
-          const usdcValue = (Number(amountFrom) * Number(usdcRate)).toFixed(6);
-          setUsdcEquivalent(`≈ ${usdcValue} USDC`);
+        // محاسبه معادل USD
+        let usdValue;
+        if (tokenFrom === "USDC") {
+          usdValue = Number(amountFrom).toFixed(2);
         } else {
-          setUsdcEquivalent("N/A");
+          const srcUSD = data.priceRoute.srcUSD || 1;
+          const srcAmount = Number(ethers.formatUnits(amountFromInWei, tokenDecimals[tokenFrom]));
+          usdValue = (srcAmount * srcUSD).toFixed(2);
         }
+        setUsdEquivalent(`≈ $${usdValue} USD`);
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
         setPriceRoute(null);
-        setUsdcEquivalent("N/A");
+        setUsdEquivalent("N/A");
       }
     } catch (error) {
       if (error.name === "AbortError") return;
@@ -673,7 +669,7 @@ function Swap() {
       setAmountTo("");
       setBestDex("Error fetching rate");
       setPriceRoute(null);
-      setUsdcEquivalent("N/A");
+      setUsdEquivalent("N/A");
       setSwapNotification({ message: `Error fetching rate: ${error.message}`, isSuccess: false });
       setTimeout(() => setSwapNotification(null), 3000);
     }
@@ -910,12 +906,15 @@ function Swap() {
     setAmountFrom("");
     setAmountTo("");
     setBestDex("Fetching...");
-    setUsdcEquivalent("");
+    setUsdEquivalent("");
   };
 
   const setMaxAmountFrom = () => {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) setAmountFrom(tokenFromBalance);
   };
+
+  // تابع کمکی برای نمایش نام توکن
+  const displayToken = (token) => token === "USDC" ? "USD" : token;
 
   return (
     <>
@@ -962,7 +961,7 @@ function Swap() {
                   <TokenButtonContainer>
                     {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
                     <TokenButton onClick={() => openModal(true)}>
-                      <span>{tokenFrom}</span>
+                      <span>{displayToken(tokenFrom)}</span>
                       <ChevronDown size={16} />
                     </TokenButton>
                     {isConnected && (
@@ -973,7 +972,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{usdcEquivalent}</UsdEquivalent>
+                <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
                 <SwapTokensContainer>
                   <SwapTokensButton onClick={swapTokens} whileHover={{ scale: 1.05 }}>
@@ -990,7 +989,7 @@ function Swap() {
                   />
                   <TokenButtonContainer>
                     <TokenButton onClick={() => openModal(false)}>
-                      <span>{tokenTo}</span>
+                      <span>{displayToken(tokenTo)}</span>
                       <ChevronDown size={16} />
                     </TokenButton>
                     {isConnected && (
@@ -1001,7 +1000,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* می‌توانید معادل USDC برای tokenTo را هم اضافه کنید */}</UsdEquivalent>
+                <UsdEquivalent>{/* می‌توانید معادل USD برای tokenTo را هم اضافه کنید */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
@@ -1024,7 +1023,7 @@ function Swap() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {isSwapping ? "Swapping..." : `Swap ${tokenFrom} to ${tokenTo}`}
+                  {isSwapping ? "Swapping..." : `Swap ${displayToken(tokenFrom)} to ${displayToken(tokenTo)}`}
                 </SwapButton>
               </div>
             </CardContent>
@@ -1041,7 +1040,7 @@ function Swap() {
               <TokenGrid>
                 {tokens.map((token) => (
                   <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    {token}
+                    {displayToken(token)}
                   </TokenOption>
                 ))}
                 {customTokens.map((token) => (
