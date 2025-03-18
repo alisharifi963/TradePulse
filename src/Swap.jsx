@@ -620,7 +620,7 @@ function Swap() {
   const fetchBestRate = async () => {
     try {
       setIsPriceRouteReady(false);
-      const amount = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]).toString();
+      const amountFromInWei = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]);
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -630,7 +630,7 @@ function Swap() {
       }
 
       const response = await fetch(
-        `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${tokenAddresses[tokenTo]}&amount=${amount}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${tokenDecimals[tokenTo]}&side=SELL&network=42161`,
+        `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${tokenAddresses[tokenTo]}&amount=${amountFromInWei.toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${tokenDecimals[tokenTo]}&side=SELL&network=42161`,
         { signal: abortController.signal }
       );
 
@@ -650,22 +650,22 @@ function Swap() {
       }
 
       const data = await response.json();
-      console.log("API Response:", data);
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
-        setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
+        const rawDestAmount = data.priceRoute.destAmount;
+        const formattedAmountTo = ethers.formatUnits(rawDestAmount, tokenDecimals[tokenTo]);
+        setAmountTo(formattedAmountTo);
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
-        const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
         let usdPrice;
         if (["USDC", "USDT", "DAI"].includes(tokenFrom)) {
-          usdPrice = 1; // نرخ ثابت برای استیبل‌کوین‌ها
+          usdPrice = 1;
         } else {
-          usdPrice = data.priceRoute.srcUSD || 1; // نرخ از API
+          usdPrice = data.priceRoute.srcUSD || 1;
         }
-        console.log("USD Price:", usdPrice);
-        const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
+        const srcAmount = Number(ethers.formatUnits(amountFromInWei, tokenDecimals[tokenFrom]));
+        const usdValue = (srcAmount * usdPrice).toFixed(2);
         setUsdEquivalent(`≈ $${usdValue} USD`);
       } else {
         setAmountTo("0.000000");
@@ -689,12 +689,11 @@ function Swap() {
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
-        console.log("Transaction Params:", txParams);
         const gas = await signer.estimateGas({
           to: txParams.to,
           data: txParams.data,
           value: txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n,
-          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 3000000n, // افزایش gasLimit
+          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 3000000n,
         });
 
         const gasInWei = ethers.toBigInt(gas.toString());
@@ -770,7 +769,6 @@ function Swap() {
     });
 
     const responseData = await response.json();
-    console.log("Transaction Data:", responseData);
     if (!response.ok) throw new Error(`Transaction build failed: ${responseData.error || "Unknown error"}`);
     if (!responseData.to || !responseData.data) throw new Error("Invalid transaction data from API");
     return responseData;
