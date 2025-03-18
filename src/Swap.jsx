@@ -65,7 +65,7 @@ const tokenDecimals = {
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
-// استایل‌ها (بدون تغییر)
+// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -325,7 +325,7 @@ const SwapButton = styled(motion.button)`
   font-weight: 600;
   background: linear-gradient(to right, #10b981, #14b8a6);
   color: white;
-  box-shadow: 0 4px 6px rgba(0, 0,0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: background 0.3s;
   &:hover { background: linear-gradient(to right, #059669, #0d9488); }
   &:disabled { background: #6b7280; cursor: not-allowed; }
@@ -646,6 +646,7 @@ function Swap() {
       }
 
       const data = await response.json();
+      console.log("API Response:", data); // برای دیباگ
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
         setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
@@ -653,7 +654,7 @@ function Swap() {
         setIsPriceRouteReady(true);
 
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-        const usdPrice = data.priceRoute.srcUSD;
+        const usdPrice = data.priceRoute.srcUSD; // نرخ هر واحد توکن به دلار
         if (usdPrice) {
           const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
           setUsdEquivalent(`≈ $${usdValue} USD`);
@@ -685,20 +686,24 @@ function Swap() {
         const gas = await signer.estimateGas({
           to: txParams.to,
           data: txParams.data,
-          value: txParams.value || 0,
+          value: txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n,
+          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 1000000n, // افزایش gasLimit پیش‌فرض
         });
 
         const gasInWei = ethers.toBigInt(gas.toString());
         const gasInEth = ethers.formatEther(gasInWei);
         const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
 
-        const ethPriceInUSD = priceRoute.srcUSD || 1; // استفاده از srcUSD از priceRoute
+        const ethPriceInUSD = priceRoute.srcUSD || 1000; // نرخ پیش‌فرض برای ETH (می‌تونی با API واقعی جایگزین کنی)
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
       } catch (error) {
         console.error("Error estimating gas:", error);
         setGasEstimate({ gwei: "Unable to estimate", usd: "N/A" });
+        setErrorMessage(`Gas estimation failed: ${error.message}`);
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     }
   };
@@ -716,7 +721,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]); // مقدار مورد نیاز برای سواپ
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -727,10 +732,9 @@ function Swap() {
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
       if (allowanceBN < amountBN) {
-        // تغییر: به جای MaxUint256 فقط مقدار مورد نیاز رو Approve می‌کنیم
         const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
-        await delay(10000); // تاخیر برای اطمینان از آپدیت بلاک‌چین
+        await delay(10000);
         allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
         if (allowanceBN < amountBN) throw new Error("Allowance still insufficient after approval!");
@@ -761,6 +765,7 @@ function Swap() {
     });
 
     const responseData = await response.json();
+    console.log("Transaction Data:", responseData); // برای دیباگ
     if (!response.ok) throw new Error(`Transaction build failed with status ${response.status}: ${responseData.error || "Unknown error"}`);
     if (!responseData.to || !responseData.data) throw new Error("Invalid transaction data from API");
     return responseData;
