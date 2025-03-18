@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 
-// استایل Global
+// استایل سراسری
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -13,16 +13,13 @@ const GlobalStyle = createGlobalStyle`
     height: 100%;
     overflow: hidden;
   }
-
   #root {
     width: 100%;
     height: 100%;
   }
-
   *, *:before, *:after {
     box-sizing: border-box;
   }
-
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
@@ -467,7 +464,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             borderRadius: "50%",
             display: "flex",
             justifyContent: "center",
-            alignItems: "center",
+            align-items: "center",
           }}
           variants={heartVariants}
           initial="initial"
@@ -488,7 +485,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 
   return (
     <motion.div
-      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", zIndex: 101, pointerEvents: "auto" }}
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", zIndex: 101 }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -523,15 +520,13 @@ const switchToArbitrum = async (provider) => {
     if (error.code === 4902) {
       await provider.request({
         method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: "0xa4b1",
-            chainName: "Arbitrum One",
-            rpcUrls: ["https://arb1.arbitrum.io/rpc"],
-            nativeCurrency: { symbol: "ETH", decimals: 18 },
-            blockExplorerUrls: ["https://arbiscan.io"],
-          },
-        ],
+        params: [{
+          chainId: "0xa4b1",
+          chainName: "Arbitrum One",
+          rpcUrls: ["https://arb1.arbitrum.io/rpc"],
+          nativeCurrency: { symbol: "ETH", decimals: 18 },
+          blockExplorerUrls: ["https://arbiscan.io"],
+        }],
       });
     } else {
       throw error;
@@ -611,6 +606,17 @@ function Swap() {
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
+  const getEthPrice = async () => {
+    try {
+      const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+      const data = await response.json();
+      return data.ethereum.usd;
+    } catch (error) {
+      console.error("Error fetching ETH price:", error);
+      return 1000; // نرخ پیش‌فرض
+    }
+  };
+
   const fetchBestRate = async () => {
     try {
       setIsPriceRouteReady(false);
@@ -631,7 +637,6 @@ function Swap() {
       if (!response.ok) {
         const errorText = await response.text();
         const parsedError = JSON.parse(errorText);
-
         if (parsedError.error === "ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT") {
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
@@ -641,12 +646,11 @@ function Swap() {
           setTimeout(() => setSwapNotification(null), 3000);
           return;
         }
-
-        throw new Error(`API responded with status ${response.status}: ${errorText}`);
+        throw new Error(`API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      console.log("API Response:", data); // دیباگ
+      console.log("API Response:", data);
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
         setAmountTo(ethers.formatUnits(data.priceRoute.destAmount, tokenDecimals[tokenTo]));
@@ -654,14 +658,15 @@ function Swap() {
         setIsPriceRouteReady(true);
 
         const srcAmountInWei = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-        const usdPrice = data.priceRoute.srcUSD || 1; // استفاده از نرخ پیش‌فرض 1 اگه srcUSD مشکل داشت
-        console.log("USD Price:", usdPrice); // دیباگ نرخ
-        if (usdPrice) {
-          const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
-          setUsdEquivalent(`≈ $${usdValue} USD`);
+        let usdPrice;
+        if (["USDC", "USDT", "DAI"].includes(tokenFrom)) {
+          usdPrice = 1; // نرخ ثابت برای استیبل‌کوین‌ها
         } else {
-          setUsdEquivalent("Price not available");
+          usdPrice = data.priceRoute.srcUSD || 1; // نرخ از API
         }
+        console.log("USD Price:", usdPrice);
+        const usdValue = (Number(ethers.formatUnits(srcAmountInWei, tokenDecimals[tokenFrom])) * usdPrice).toFixed(2);
+        setUsdEquivalent(`≈ $${usdValue} USD`);
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
@@ -684,19 +689,19 @@ function Swap() {
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
-        console.log("Transaction Params:", txParams); // دیباگ
+        console.log("Transaction Params:", txParams);
         const gas = await signer.estimateGas({
           to: txParams.to,
           data: txParams.data,
           value: txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n,
-          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 2000000n, // افزایش بیشتر gasLimit
+          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 3000000n, // افزایش gasLimit
         });
 
         const gasInWei = ethers.toBigInt(gas.toString());
         const gasInEth = ethers.formatEther(gasInWei);
         const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
 
-        const ethPriceInUSD = 1000; // نرخ پیش‌فرض برای ETH (می‌تونی با API واقعی جایگزین کنی)
+        const ethPriceInUSD = await getEthPrice();
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -717,7 +722,7 @@ function Swap() {
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-      console.log("No approval needed for native token (ETH).");
+      console.log("No approval needed for ETH.");
       return true;
     }
 
@@ -726,9 +731,7 @@ function Swap() {
       const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (network.chainId !== 42161n) {
-        await switchToArbitrum(window.ethereum);
-      }
+      if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
 
       let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
       let allowanceBN = ethers.toBigInt(allowance.toString());
@@ -739,7 +742,7 @@ function Swap() {
         await delay(10000);
         allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
-        if (allowanceBN < amountBN) throw new Error("Allowance still insufficient after approval!");
+        if (allowanceBN < amountBN) throw new Error("Allowance insufficient after approval!");
       }
       return true;
     } catch (error) {
@@ -752,7 +755,7 @@ function Swap() {
   };
 
   const buildTransaction = async () => {
-    if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: priceRoute or wallet connection missing");
+    if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: missing priceRoute or wallet connection");
 
     const srcToken = tokenAddresses[tokenFrom];
     const destToken = tokenAddresses[tokenTo];
@@ -767,8 +770,8 @@ function Swap() {
     });
 
     const responseData = await response.json();
-    console.log("Transaction Data:", responseData); // دیباگ
-    if (!response.ok) throw new Error(`Transaction build failed with status ${response.status}: ${responseData.error || "Unknown error"}`);
+    console.log("Transaction Data:", responseData);
+    if (!response.ok) throw new Error(`Transaction build failed: ${responseData.error || "Unknown error"}`);
     if (!responseData.to || !responseData.data) throw new Error("Invalid transaction data from API");
     return responseData;
   };
@@ -802,7 +805,7 @@ function Swap() {
 
       await checkAndApproveToken();
       await fetchBestRate();
-      if (!isPriceRouteReady) throw new Error("Failed to refresh price route. Please try again.");
+      if (!isPriceRouteReady) throw new Error("Failed to refresh price route.");
 
       const txParams = await buildTransaction();
       const txValue = txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n;
@@ -881,7 +884,7 @@ function Swap() {
       try {
         const network = await provider.getNetwork();
         if (network.chainId !== 42161n) {
-          setErrorMessage("Connected to wrong network. Please switch to Arbitrum (chain ID 42161).");
+          setErrorMessage("Connected to wrong network. Switch to Arbitrum.");
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
           await switchToArbitrum(provider);
