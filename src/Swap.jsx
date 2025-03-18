@@ -65,7 +65,7 @@ const tokenDecimals = {
 const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
-// استایل‌ها
+// استایل‌ها (بدون تغییر)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -325,7 +325,7 @@ const SwapButton = styled(motion.button)`
   font-weight: 600;
   background: linear-gradient(to right, #10b981, #14b8a6);
   color: white;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0,0, 0.1);
   transition: background 0.3s;
   &:hover { background: linear-gradient(to right, #059669, #0d9488); }
   &:disabled { background: #6b7280; cursor: not-allowed; }
@@ -716,7 +716,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]); // مقدار مورد نیاز برای سواپ
 
       const network = await provider.getNetwork();
       if (network.chainId !== 42161n) {
@@ -727,9 +727,10 @@ function Swap() {
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
       if (allowanceBN < amountBN) {
-        const tx = await tokenContract.approve(PARASWAP_PROXY, ethers.MaxUint256);
+        // تغییر: به جای MaxUint256 فقط مقدار مورد نیاز رو Approve می‌کنیم
+        const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
-        await delay(10000);
+        await delay(10000); // تاخیر برای اطمینان از آپدیت بلاک‌چین
         allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
         if (allowanceBN < amountBN) throw new Error("Allowance still insufficient after approval!");
