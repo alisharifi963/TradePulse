@@ -557,12 +557,13 @@ function Swap() {
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [usdEquivalent, setUsdEquivalent] = useState("");
+  const [usdcEquivalent, setUsdcEquivalent] = useState("");
   const [tokenFromBalance, setTokenFromBalance] = useState("0");
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
+  const [tokenPriceInUSDC, setTokenPriceInUSDC] = useState(null);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -602,20 +603,43 @@ function Swap() {
       setBestDex("Enter a valid amount greater than 0");
       setPriceRoute(null);
       setIsPriceRouteReady(false);
-      setUsdEquivalent("");
+      setUsdcEquivalent("");
     }
   }, [amountFrom, tokenFrom, tokenTo]);
 
-  const getEthPrice = async () => {
+  const fetchTokenPriceInUSDC = async (tokenSymbol) => {
+    if (tokenSymbol === "USDC") return 1; // نرخ USDC به USDC همیشه 1 است
     try {
-      const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+      const response = await fetch(
+        `${apiUrl}/prices?srcToken=${tokenAddresses[tokenSymbol]}&destToken=${tokenAddresses["USDC"]}&amount=1&srcDecimals=${tokenDecimals[tokenSymbol]}&destDecimals=6&side=SELL&network=42161`,
+        { signal: abortController.signal }
+      );
       const data = await response.json();
-      return data.ethereum.usd;
+      if (data.priceRoute) {
+        return ethers.formatUnits(data.priceRoute.destAmount, 6); // نرخ به USDC
+      } else {
+        return "N/A";
+      }
     } catch (error) {
-      console.error("Error fetching ETH price:", error);
-      return 1000; // نرخ پیش‌فرض
+      console.error(`Error fetching price for ${tokenSymbol}:`, error);
+      return "N/A";
     }
   };
+
+  useEffect(() => {
+    const updateTokenPrice = async () => {
+      const price = await fetchTokenPriceInUSDC(tokenFrom);
+      setTokenPriceInUSDC(price);
+      if (price !== "N/A" && amountFrom) {
+        const amount = Number(amountFrom || 0);
+        const usdcValue = (amount * Number(price)).toFixed(2);
+        setUsdcEquivalent(`≈ ${usdcValue} USDC`);
+      } else {
+        setUsdcEquivalent("N/A");
+      }
+    };
+    updateTokenPrice();
+  }, [tokenFrom, amountFrom]);
 
   const fetchBestRate = async () => {
     try {
@@ -625,7 +649,7 @@ function Swap() {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
         setPriceRoute(null);
-        setUsdEquivalent("");
+        setUsdcEquivalent("");
         return;
       }
 
@@ -641,7 +665,7 @@ function Swap() {
           setAmountTo("0.000000");
           setBestDex("Price Impact Too High");
           setPriceRoute(null);
-          setUsdEquivalent("");
+          setUsdcEquivalent("");
           setSwapNotification({ message: "Price impact too high! Reduce the amount.", isSuccess: false });
           setTimeout(() => setSwapNotification(null), 3000);
           return;
@@ -657,21 +681,11 @@ function Swap() {
         setAmountTo(formattedAmountTo);
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
-
-        let usdPrice;
-        if (["USDC", "USDT", "DAI"].includes(tokenFrom)) {
-          usdPrice = 1;
-        } else {
-          usdPrice = data.priceRoute.srcUSD || 1;
-        }
-        const srcAmount = Number(ethers.formatUnits(amountFromInWei, tokenDecimals[tokenFrom]));
-        const usdValue = (srcAmount * usdPrice).toFixed(2);
-        setUsdEquivalent(`≈ $${usdValue} USD`);
       } else {
         setAmountTo("0.000000");
         setBestDex("No route found");
         setPriceRoute(null);
-        setUsdEquivalent("");
+        setUsdcEquivalent("");
       }
     } catch (error) {
       if (error.name === "AbortError") return;
@@ -679,7 +693,7 @@ function Swap() {
       setAmountTo("");
       setBestDex("Error fetching rate");
       setPriceRoute(null);
-      setUsdEquivalent("");
+      setUsdcEquivalent("");
       setSwapNotification({ message: `Error fetching rate: ${error.message}`, isSuccess: false });
       setTimeout(() => setSwapNotification(null), 3000);
     }
@@ -700,7 +714,9 @@ function Swap() {
         const gasInEth = ethers.formatEther(gasInWei);
         const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
 
-        const ethPriceInUSD = await getEthPrice();
+        const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+        const ethPriceData = await ethPriceResponse.json();
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // نرخ پیش‌فرض
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -914,7 +930,7 @@ function Swap() {
     setAmountFrom("");
     setAmountTo("");
     setBestDex("Fetching...");
-    setUsdEquivalent("");
+    setUsdcEquivalent("");
   };
 
   const setMaxAmountFrom = () => {
@@ -977,7 +993,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
+                <UsdEquivalent>{usdcEquivalent}</UsdEquivalent>
 
                 <SwapTokensContainer>
                   <SwapTokensButton onClick={swapTokens} whileHover={{ scale: 1.05 }}>
@@ -1005,7 +1021,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* معادل دلاری برای tokenTo */}</UsdEquivalent>
+                <UsdEquivalent>{/* می‌توانید معادل USDC برای tokenTo را هم اضافه کنید */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
