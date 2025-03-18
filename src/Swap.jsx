@@ -464,7 +464,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
             borderRadius: "50%",
             display: "flex",
             justifyContent: "center",
-            align-items: "center",
+            alignItems: "center",
           }}
           variants={heartVariants}
           initial="initial"
