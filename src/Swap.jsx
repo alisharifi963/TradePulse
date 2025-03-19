@@ -4,25 +4,27 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 
-// آدرس‌های قرارداد صرافی‌ها برای هر شبکه
-const EXCHANGE_ROUTERS = {
-  uniswap: {
-    1: ethers.getAddress("0xE592427A0AEce92De3Edee1F18E0157C05861564"), // اتریوم
-    42161: ethers.getAddress("0xE592427A0AEce92De3Edee1F18E0157C05861564"), // آربیتروم
-    8453: ethers.getAddress("0x2626664c2603E547cE16bd5fF32a7028897935e"), // بیس
-  },
-  sushiswap: {
-    1: ethers.getAddress("0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"), // اتریوم
-    42161: ethers.getAddress("0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"), // آربیتروم
-    8453: ethers.getAddress("0x8c3085D9a440EBeC94fAca430D5D2A2c49d5d48"), // بیس
-  },
-  curve: {
-    1: ethers.getAddress("0x99a58482BD75cbab83b27EC03CA68fF489b5788"), // اتریوم (Curve 3Pool)
-    42161: ethers.getAddress("0x960ea3e3C7FB317332d990873d354E18d764559"), // آربیتروم (Curve 2Pool)
-    8453: null, // فعلاً Curve روی بیس پشتیبانی نمی‌شه
-  },
-};
+// استایل سراسری
+const GlobalStyle = createGlobalStyle`
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  #root {
+    width: 100%;
+    height: 100%;
+  }
+  *, *:before, *:after {
+    box-sizing: border-box;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
+`;
 
+// آدرس‌ها و تنظیمات
+const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -31,105 +33,500 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-const UNISWAP_V3_ABI = [
-  "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
-];
-
-const SUSHISWAP_V2_ABI = [
-  "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external returns (uint256[] memory amounts)"
-];
-
-const CURVE_ABI = [
-  "function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external returns (uint256)"
-];
-
-// آدرس‌های توکن‌ها برای هر شبکه
-const tokenAddressesByNetwork = {
-  1: { // اتریوم
-    ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDT: "0xdac17f958d2ee523a2206206994597c13d831ec7",
-    USDC: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    WBTC: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
-    DAI: "0x6b175474e89094c44da98b954eedeac495271d0f",
-    UNI: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
-    LINK: "0x514910771af9ca656af840dff83e8264ecf986ca",
-  },
-  42161: { // آربیتروم
-    ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-    WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
-    ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
-    UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
-    LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
-    WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-    GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
-    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
-  },
-  8453: { // بیس
-    ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDT: "0xfde4C96c8593536E31F229EA8f63b2ADa7699bb",
-    USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    WBTC: "0xBBeB516fb02a01611cbD2175504913A516F81b2",
-    DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
-  },
+const tokenAddresses = {
+  ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+  USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+  WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+  ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+  UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
+  LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
+  WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+  GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
+  USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
 };
 
-// تعداد اعشار توکن‌ها
 const tokenDecimals = {
   ETH: 18,
-  USDT: 6,
   USDC: 6,
-  WBTC: 8,
   DAI: 18,
+  WBTC: 8,
+  ARB: 18,
   UNI: 18,
   LINK: 18,
-  ARB: 18,
   WETH: 18,
   GMX: 18,
+  USDT: 6,
 };
 
-// تنظیمات شبکه‌ها
-const networkDetails = {
-  1: {
-    chainName: "Ethereum Mainnet",
-    rpcUrls: ["https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID"],
-    nativeCurrency: { symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://etherscan.io"],
-  },
-  42161: {
-    chainName: "Arbitrum One",
-    rpcUrls: ["https://arb1.arbitrum.io/rpc"],
-    nativeCurrency: { symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://arbiscan.io"],
-  },
-  8453: {
-    chainName: "Base",
-    rpcUrls: ["https://mainnet.base.org"],
-    nativeCurrency: { symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://basescan.org"],
-  },
-};
-
-const tokensByNetwork = {
-  1: ["ETH", "USDT", "USDC", "WBTC", "DAI", "UNI", "LINK"],
-  42161: ["ETH", "USDC", "DAI", "WBTC", "ARB", "UNI", "LINK", "WETH", "GMX", "USDT"],
-  8453: ["ETH", "USDT", "USDC", "WBTC", "DAI"],
-};
-
+const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
-const switchNetwork = async (provider, chainId) => {
+// استایل‌ها
+const AppContainer = styled.div`
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(to bottom right, #111827, #312e81, #111827);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  position: relative;
+`;
+
+const Particle = styled.div`
+  position: absolute;
+  width: 24rem;
+  height: 24rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 50%;
+  filter: blur(6rem);
+  top: 2.5rem;
+  left: 2.5rem;
+  animation: pulse 8s infinite;
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+`;
+
+const ParticleBottom = styled(Particle)`
+  background: rgba(147, 51, 234, 0.1);
+  top: auto;
+  bottom: 2.5rem;
+  left: auto;
+  right: 2.5rem;
+`;
+
+const Header = styled.header`
+  width: 100%;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(31, 41, 55, 0.5);
+  backdrop-filter: blur(10px);
+  position: relative;
+`;
+
+const HeaderTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const BetaTag = styled.span`
+  font-size: 1rem;
+  font-weight: 500;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+`;
+
+const HeartIcon = styled(motion.div)`
+  color: #3b82f6;
+`;
+
+const ConnectButton = styled(motion.button)`
+  background: #10b981;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  &:hover { background: #059669; }
+`;
+
+const NetworkIndicator = styled.div`
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+`;
+
+const WalletContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 1.5rem;
+`;
+
+const TrustSticker = styled.div`
+  position: absolute;
+  top: 5rem;
+  left: 2rem;
+  background: #f0e4d7;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  box-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+  transform: rotate(-7deg);
+  z-index: 10;
+  clip-path: polygon(
+    0% 0%, 5% 2%, 10% 0%, 15% 3%, 20% 1%, 25% 4%, 30% 2%, 35% 0%, 40% 3%, 45% 1%,
+    50% 4%, 55% 2%, 60% 0%, 65% 3%, 70% 1%, 75% 4%, 80% 2%, 85% 0%, 90% 3%, 95% 1%,
+    100% 0%, 100% 100%, 95% 98%, 90% 100%, 85% 97%, 80% 99%, 75% 96%, 70% 98%,
+    65% 100%, 60% 97%, 55% 99%, 50% 96%, 45% 98%, 40% 100%, 35% 97%, 30% 99%,
+    25% 96%, 20% 98%, 15% 100%, 10% 97%, 5% 99%, 0% 100%
+  );
+`;
+
+const TrustText = styled.p`
+  font-family: 'Caveat', cursive;
+  font-size: 1.25rem;
+  color: #374151;
+  margin: 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+`;
+
+const MainContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+`;
+
+const Card = styled.div`
+  background: rgba(31, 41, 55, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.5rem;
+  color: white;
+  position: relative;
+`;
+
+const CardContent = styled.div`
+  padding: 1.5rem;
+`;
+
+const Subtitle = styled.h2`
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: white;
+`;
+
+const InputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  background: rgba(55, 65, 81, 0.5);
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(75, 85, 99, 0.5);
+  margin-bottom: 0.5rem;
+  height: 4rem;
+`;
+
+const UsdEquivalent = styled.p`
+  text-align: right;
+  font-size: 0.875rem;
+  color: #3b82f6;
+  margin: 0 1rem 1rem 0;
+`;
+
+const Input = styled.input`
+  background: transparent;
+  color: white;
+  width: 66.67%;
+  outline: none;
+  border: none;
+  font-size: 1.125rem;
+`;
+
+const TokenButtonContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+`;
+
+const TokenButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: #4f46e5;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: background 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid #6366f1;
+  width: 5rem;
+  &:hover { background: #4338ca; }
+`;
+
+const BalanceContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #a1a1aa;
+  font-size: 0.875rem;
+  cursor: pointer;
+  &:hover { color: #3b82f6; }
+`;
+
+const MaxButton = styled.button`
+  background: #10b981;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  width: fit-content;
+  &:hover { background: #059669; }
+`;
+
+const SwapTokensContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0.5rem 0;
+`;
+
+const SwapTokensButton = styled(motion.button)`
+  background: #10b981;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  &:hover { background: #059669; }
+`;
+
+const RateInfo = styled.p`
+  text-align: center;
+  font-size: 0.875rem;
+  color: #3b82f6;
+  margin-bottom: 1rem;
+`;
+
+const SwapButton = styled(motion.button)`
+  width: 100%;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  background: linear-gradient(to right, #10b981, #14b8a6);
+  color: white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: background 0.3s;
+  &:hover { background: linear-gradient(to right, #059669, #0d9488); }
+  &:disabled { background: #6b7280; cursor: not-allowed; }
+`;
+
+const ModalOverlay = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+`;
+
+const ModalContent = styled(motion.div)`
+  background: rgba(31, 41, 55, 0.9);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 1rem;
+  width: 20rem;
+  max-height: 80vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+`;
+
+const ModalTitle = styled.h3`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+`;
+
+const TokenGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+`;
+
+const TokenOption = styled(motion.button)`
+  padding: 0.75rem;
+  background: #4f46e5;
+  color: white;
+  border-radius: 0.5rem;
+  transition: background 0.3s;
+  font-weight: 500;
+  &:hover { background: #4338ca; }
+`;
+
+const Footer = styled.footer`
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: rgba(31, 41, 55, 0.5);
+  backdrop-filter: blur(10px);
+  text-align: center;
+`;
+
+const FooterText = styled.p`
+  font-size: 0.875rem;
+  color: #9ca3af;
+`;
+
+const FooterLink = styled.a`
+  color: #3b82f6;
+  &:hover { text-decoration: underline; }
+`;
+
+const Notification = styled(motion.div)`
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ef4444;
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: slideIn 0.3s ease-out;
+
+  @keyframes slideIn {
+    from { top: -5rem; }
+    to { top: 1rem; }
+  }
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  color: white;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  margin-left: 1rem;
+`;
+
+const AnimationOverlay = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+`;
+
+const SwapAnimation = ({ isSwapping, hasError }) => {
+  const heartVariants = {
+    initial: { scale: 1 },
+    animate: hasError ? { scale: 1 } : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
+  };
+
+  return isSwapping ? (
+    <AnimationOverlay
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <motion.div
+          style={{
+            width: "80px",
+            height: "80px",
+            background: "linear-gradient(to right, #10b981, #3b82f6)",
+            borderRadius: "50%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          variants={heartVariants}
+          initial="initial"
+          animate="animate"
+        >
+          <HeartPulse size={40} color="white" />
+        </motion.div>
+        <motion.p style={{ color: "white", marginTop: "1rem", fontSize: "1rem", textShadow: "0 0 5px rgba(0, 0, 0, 0.5)" }}>
+          Swapping in progress...
+        </motion.p>
+      </motion.div>
+    </AnimationOverlay>
+  ) : null;
+};
+
+const SwapNotification = ({ message, isSuccess, onClose }) => {
+  const background = isSuccess ? "linear-gradient(to right, #10b981, #3b82f6)" : "linear-gradient(to right, #ef4444, #b91c1c)";
+
+  return (
+    <motion.div
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", zIndex: 101 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.div
+        style={{ background, color: "white", padding: "1rem 2rem", borderRadius: "0.5rem", boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", maxWidth: "400px", textAlign: "center", wordBreak: "break-word" }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0, opacity: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+          <span>{message}</span>
+        </div>
+        <button
+          onClick={onClose}
+          style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}
+        >
+          OK
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const switchToArbitrum = async (provider) => {
   try {
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: `0x${chainId.toString(16)}` }],
-    });
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xa4b1" }] });
   } catch (error) {
     if (error.code === 4902) {
       await provider.request({
         method: "wallet_addEthereumChain",
-        params: [networkDetails[chainId]],
+        params: [{
+          chainId: "0xa4b1",
+          chainName: "Arbitrum One",
+          rpcUrls: ["https://arb1.arbitrum.io/rpc"],
+          nativeCurrency: { symbol: "ETH", decimals: 18 },
+          blockExplorerUrls: ["https://arbiscan.io"],
+        }],
       });
     } else {
       throw error;
@@ -165,13 +562,12 @@ function Swap() {
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
-  const [currentNetwork, setCurrentNetwork] = useState(42161); // شبکه پیش‌فرض: آربیتروم
-  const [currentNetworkName, setCurrentNetworkName] = useState("Arbitrum");
+  const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
     try {
-      const tokenAddress = tokenAddressesByNetwork[currentNetwork][tokenSymbol];
+      const tokenAddress = tokenAddresses[tokenSymbol];
       let balance;
       if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
         balance = await provider.getBalance(userAddress);
@@ -196,7 +592,7 @@ function Swap() {
       }
     };
     updateBalances();
-  }, [isConnected, address, provider, tokenFrom, tokenTo, currentNetwork]);
+  }, [isConnected, address, provider, tokenFrom, tokenTo]);
 
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
@@ -208,7 +604,7 @@ function Swap() {
       setIsPriceRouteReady(false);
       setUsdEquivalent("");
     }
-  }, [amountFrom, tokenFrom, tokenTo, currentNetwork]);
+  }, [amountFrom, tokenFrom, tokenTo]);
 
   const fetchBestRate = async () => {
     try {
@@ -223,7 +619,7 @@ function Swap() {
       }
 
       const response = await fetch(
-        `${apiUrl}/prices?srcToken=${tokenAddressesByNetwork[currentNetwork][tokenFrom]}&destToken=${tokenAddressesByNetwork[currentNetwork][tokenTo]}&amount=${amountFromInWei.toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${tokenDecimals[tokenTo]}&side=SELL&network=${currentNetwork}`,
+        `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${tokenAddresses[tokenTo]}&amount=${amountFromInWei.toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${tokenDecimals[tokenTo]}&side=SELL&network=42161`,
         { signal: abortController.signal }
       );
 
@@ -251,6 +647,7 @@ function Swap() {
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
+        // محاسبه معادل USD
         let usdValue;
         if (tokenFrom === "USDC") {
           usdValue = Number(amountFrom).toFixed(2);
@@ -278,17 +675,24 @@ function Swap() {
     }
   };
 
-  const estimateGas = async (txParams) => {
-    if (signer) {
+  const estimateGas = async () => {
+    if (signer && priceRoute) {
       try {
-        const gas = await signer.estimateGas(txParams);
+        const txParams = await buildTransaction();
+        const gas = await signer.estimateGas({
+          to: txParams.to,
+          data: txParams.data,
+          value: txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n,
+          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 3000000n,
+        });
+
         const gasInWei = ethers.toBigInt(gas.toString());
         const gasInEth = ethers.formatEther(gasInWei);
         const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // نرخ پیش‌فرض
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -303,72 +707,11 @@ function Swap() {
   };
 
   useEffect(() => {
-    if (isPriceRouteReady) {
-      const srcTokenAddress = tokenAddressesByNetwork[currentNetwork][tokenFrom];
-      const destTokenAddress = tokenAddressesByNetwork[currentNetwork][tokenTo];
-      const amountIn = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-      const amountOutMin = ethers.parseUnits(amountTo, tokenDecimals[tokenTo]).mul(99).div(100); // 1% slippage tolerance
+    if (isPriceRouteReady) estimateGas();
+  }, [isPriceRouteReady]);
 
-      let txParams;
-      const dex = bestDex.toLowerCase();
-
-      if (dex.includes("uniswap")) {
-        const params = {
-          tokenIn: srcTokenAddress,
-          tokenOut: destTokenAddress,
-          fee: 3000, // کارمزد 0.3%
-          recipient: address,
-          deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-          amountIn: amountIn,
-          amountOutMinimum: amountOutMin,
-          sqrtPriceLimitX96: 0,
-        };
-        const data = new ethers.Interface(UNISWAP_V3_ABI).encodeFunctionData("exactInputSingle", [params]);
-        txParams = {
-          to: EXCHANGE_ROUTERS.uniswap[currentNetwork],
-          data: data,
-          value: srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" ? amountIn : 0,
-        };
-      } else if (dex.includes("sushiswap")) {
-        const path = [srcTokenAddress, destTokenAddress];
-        const params = [
-          amountIn,
-          amountOutMin,
-          path,
-          address,
-          Math.floor(Date.now() / 1000) + 60 * 20,
-        ];
-        const data = new ethers.Interface(SUSHISWAP_V2_ABI).encodeFunctionData("swapExactTokensForTokens", params);
-        txParams = {
-          to: EXCHANGE_ROUTERS.sushiswap[currentNetwork],
-          data: data,
-          value: 0, // SushiSwap از ETH مستقیم پشتیبانی نمی‌کنه، باید WETH استفاده بشه
-        };
-      } else if (dex.includes("curve") && EXCHANGE_ROUTERS.curve[currentNetwork]) {
-        // برای Curve، باید i و j (اندیس توکن‌ها توی pool) رو مشخص کنیم
-        // این فقط یه مثال ساده‌ست، توی عمل باید pool و اندیس‌ها رو دقیق‌تر مشخص کنیم
-        const i = tokenFrom === "USDC" ? 1 : 0; // فرض: USDC اندیس 1
-        const j = tokenTo === "DAI" ? 0 : 1; // فرض: DAI اندیس 0
-        const params = [i, j, amountIn, amountOutMin];
-        const data = new ethers.Interface(CURVE_ABI).encodeFunctionData("exchange", params);
-        txParams = {
-          to: EXCHANGE_ROUTERS.curve[currentNetwork],
-          data: data,
-          value: 0,
-        };
-      } else {
-        setErrorMessage(`Unsupported DEX: ${bestDex}`);
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      estimateGas(txParams);
-    }
-  }, [isPriceRouteReady, currentNetwork, bestDex]);
-
-  const checkAndApproveToken = async (spender) => {
-    const srcTokenAddress = tokenAddressesByNetwork[currentNetwork][tokenFrom];
+  const checkAndApproveToken = async () => {
+    const srcTokenAddress = tokenAddresses[tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
       console.log("No approval needed for ETH.");
       return true;
@@ -379,16 +722,16 @@ function Swap() {
       const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (Number(network.chainId) !== currentNetwork) await switchNetwork(window.ethereum, currentNetwork);
+      if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
 
-      let allowance = await tokenContract.allowance(address, spender);
+      let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
       if (allowanceBN < amountBN) {
-        const tx = await tokenContract.approve(spender, amountBN);
+        const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
         await tx.wait();
         await delay(10000);
-        allowance = await tokenContract.allowance(address, spender);
+        allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
         if (allowanceBN < amountBN) throw new Error("Allowance insufficient after approval!");
       }
@@ -400,6 +743,27 @@ function Swap() {
       setTimeout(() => setIsNotificationVisible(false), 3000);
       throw error;
     }
+  };
+
+  const buildTransaction = async () => {
+    if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: missing priceRoute or wallet connection");
+
+    const srcToken = tokenAddresses[tokenFrom];
+    const destToken = tokenAddresses[tokenTo];
+    const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString();
+    const txData = { srcToken, destToken, srcAmount, destAmount: priceRoute.destAmount.toString(), priceRoute, userAddress: address };
+
+    const response = await fetch(`${apiUrl}/transactions/42161`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(txData),
+      signal: abortController.signal,
+    });
+
+    const responseData = await response.json();
+    if (!response.ok) throw new Error(`Transaction build failed: ${responseData.error || "Unknown error"}`);
+    if (!responseData.to || !responseData.data) throw new Error("Invalid transaction data from API");
+    return responseData;
   };
 
   const handleSwap = async () => {
@@ -427,60 +791,17 @@ function Swap() {
     setIsSwapping(true);
     try {
       const network = await provider.getNetwork();
-      if (Number(network.chainId) !== currentNetwork) await switchNetwork(window.ethereum, currentNetwork);
+      if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
 
-      const srcTokenAddress = tokenAddressesByNetwork[currentNetwork][tokenFrom];
-      const destTokenAddress = tokenAddressesByNetwork[currentNetwork][tokenTo];
-      const amountIn = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
-      const amountOutMin = ethers.parseUnits(amountTo, tokenDecimals[tokenTo]).mul(99).div(100);
+      await checkAndApproveToken();
+      await fetchBestRate();
+      if (!isPriceRouteReady) throw new Error("Failed to refresh price route.");
 
-      const dex = bestDex.toLowerCase();
-      let tx;
+      const txParams = await buildTransaction();
+      const txValue = txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n;
+      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 500000n;
 
-      if (dex.includes("uniswap")) {
-        const params = {
-          tokenIn: srcTokenAddress,
-          tokenOut: destTokenAddress,
-          fee: 3000,
-          recipient: address,
-          deadline: Math.floor(Date.now() / 1000) + 60 * 20,
-          amountIn: amountIn,
-          amountOutMinimum: amountOutMin,
-          sqrtPriceLimitX96: 0,
-        };
-        await checkAndApproveToken(EXCHANGE_ROUTERS.uniswap[currentNetwork]);
-        const uniswapContract = new ethers.Contract(EXCHANGE_ROUTERS.uniswap[currentNetwork], UNISWAP_V3_ABI, signer);
-        tx = await uniswapContract.exactInputSingle(params, {
-          value: srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" ? amountIn : 0,
-          gasLimit: 500000,
-        });
-      } else if (dex.includes("sushiswap")) {
-        const path = [srcTokenAddress, destTokenAddress];
-        const params = [
-          amountIn,
-          amountOutMin,
-          path,
-          address,
-          Math.floor(Date.now() / 1000) + 60 * 20,
-        ];
-        await checkAndApproveToken(EXCHANGE_ROUTERS.sushiswap[currentNetwork]);
-        const sushiswapContract = new ethers.Contract(EXCHANGE_ROUTERS.sushiswap[currentNetwork], SUSHISWAP_V2_ABI, signer);
-        tx = await sushiswapContract.swapExactTokensForTokens(...params, {
-          gasLimit: 500000,
-        });
-      } else if (dex.includes("curve") && EXCHANGE_ROUTERS.curve[currentNetwork]) {
-        const i = tokenFrom === "USDC" ? 1 : 0; // فرض: USDC اندیس 1
-        const j = tokenTo === "DAI" ? 0 : 1; // فرض: DAI اندیس 0
-        const params = [i, j, amountIn, amountOutMin];
-        await checkAndApproveToken(EXCHANGE_ROUTERS.curve[currentNetwork]);
-        const curveContract = new ethers.Contract(EXCHANGE_ROUTERS.curve[currentNetwork], CURVE_ABI, signer);
-        tx = await curveContract.exchange(...params, {
-          gasLimit: 500000,
-        });
-      } else {
-        throw new Error(`Unsupported DEX: ${bestDex}`);
-      }
-
+      const tx = await signer.sendTransaction({ to: txParams.to, data: txParams.data, value: txValue, gasLimit });
       await tx.wait();
 
       setSwapNotification({ message: `Swap successful! Tx Hash: ${tx.hash}`, isSuccess: true });
@@ -512,15 +833,7 @@ function Swap() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const network = await provider.getNetwork();
-        const chainId = Number(network.chainId);
-        if (!networkDetails[chainId]) {
-          setErrorMessage("Unsupported network. Please switch to Ethereum, Arbitrum, or Base.");
-          setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 3000);
-          return;
-        }
-        setCurrentNetwork(chainId);
-        setCurrentNetworkName(networkDetails[chainId].chainName);
+        if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
         const signer = await provider.getSigner();
         const userAddress = await signer.getAddress();
         setProvider(provider);
@@ -560,11 +873,11 @@ function Swap() {
     if (ethers.isAddress(customTokenAddress)) {
       try {
         const network = await provider.getNetwork();
-        if (Number(network.chainId) !== currentNetwork) {
-          setErrorMessage(`Connected to wrong network. Switch to ${networkDetails[currentNetwork].chainName}.`);
+        if (network.chainId !== 42161n) {
+          setErrorMessage("Connected to wrong network. Switch to Arbitrum.");
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
-          await switchNetwork(provider, currentNetwork);
+          await switchToArbitrum(provider);
           return;
         }
 
@@ -600,24 +913,7 @@ function Swap() {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) setAmountFrom(tokenFromBalance);
   };
 
-  const handleNetworkChange = async (chainId) => {
-    try {
-      await switchNetwork(window.ethereum, chainId);
-      setCurrentNetwork(chainId);
-      setCurrentNetworkName(networkDetails[chainId].chainName);
-      setTokenFrom(tokensByNetwork[chainId][0]);
-      setTokenTo(tokensByNetwork[chainId][1]);
-      setAmountFrom("");
-      setAmountTo("");
-      setBestDex("Fetching...");
-    } catch (error) {
-      console.error("Network switch error:", error);
-      setErrorMessage(`Failed to switch network: ${error.message}`);
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-    }
-  };
-
+  // تابع کمکی برای نمایش نام توکن
   const displayToken = (token) => token === "USDC" ? "USD" : token;
 
   return (
@@ -638,19 +934,7 @@ function Swap() {
             <BetaTag>Beta</BetaTag>
           </HeaderTitle>
           <WalletContainer>
-            <NetworkSelector>
-              <select
-                value={currentNetwork}
-                onChange={(e) => handleNetworkChange(Number(e.target.value))}
-                style={{ padding: "5px", borderRadius: "5px", background: "#333", color: "white", border: "none" }}
-              >
-                {Object.keys(networkDetails).map((chainId) => (
-                  <option key={chainId} value={chainId}>
-                    {networkDetails[chainId].chainName}
-                  </option>
-                ))}
-              </select>
-            </NetworkSelector>
+            <NetworkIndicator><span>{currentNetwork}</span></NetworkIndicator>
             <ConnectButton onClick={isConnected ? disconnectWallet : handleConnect} whileHover={{ scale: 1.05 }}>
               {isConnected ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connect Wallet"}
             </ConnectButton>
@@ -754,7 +1038,7 @@ function Swap() {
                 <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
               </ModalHeader>
               <TokenGrid>
-                {tokensByNetwork[currentNetwork].map((token) => (
+                {tokens.map((token) => (
                   <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {displayToken(token)}
                   </TokenOption>
@@ -781,7 +1065,7 @@ function Swap() {
         {swapNotification && <SwapNotification message={swapNotification.message} isSuccess={swapNotification.isSuccess} onClose={() => setSwapNotification(null)} />}
 
         <Footer>
-          <FooterText>Powered by TradePulse | Built on {currentNetworkName} | <FooterLink href="#">Learn More</FooterLink></FooterText>
+          <FooterText>Powered by TradePulse | Built on Arbitrum | <FooterLink href="#">Learn More</FooterLink></FooterText>
         </Footer>
       </AppContainer>
     </>
@@ -789,354 +1073,3 @@ function Swap() {
 }
 
 export default Swap;
-
-// استایل‌ها (بدون تغییر)
-const GlobalStyle = createGlobalStyle`
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Inter', sans-serif;
-  }
-  body {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    min-height: 100vh;
-    color: white;
-    overflow-x: hidden;
-  }
-`;
-
-const AppContainer = styled.div`
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  position: relative;
-`;
-
-const Header = styled.header`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-`;
-
-const HeaderTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const HeartIcon = styled(motion.div)`
-  color: #ff6b6b;
-`;
-
-const BetaTag = styled.span`
-  background: #ff6b6b;
-  color: white;
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 10px;
-`;
-
-const WalletContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const NetworkSelector = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const ConnectButton = styled(motion.button)`
-  background: linear-gradient(90deg, #ff6b6b 0%, #ff8e53 100%);
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-`;
-
-const TrustSticker = styled.div`
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(5px);
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  text-align: center;
-  margin-bottom: 2rem;
-`;
-
-const TrustText = styled.p`
-  font-size: 0.9rem;
-  color: #a0a0a0;
-`;
-
-const MainContent = styled.main`
-  display: flex;
-  justify-content: center;
-`;
-
-const Card = styled.div`
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  width: 100%;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-`;
-
-const CardContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-`;
-
-const Subtitle = styled.h2`
-  font-size: 1.5rem;
-  font-weight: 600;
-  text-align: center;
-  margin-bottom: 1rem;
-`;
-
-const InputContainer = styled.div`
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-`;
-
-const Input = styled.input`
-  background: transparent;
-  border: none;
-  color: white;
-  font-size: 1.2rem;
-  width: 100%;
-  outline: none;
-
-  &::-webkit-outer-spin-button,
-  &::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  &[type=number] {
-    -moz-appearance: textfield;
-  }
-`;
-
-const TokenButtonContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-const MaxButton = styled.button`
-  background: #ff6b6b;
-  border: none;
-  padding: 0.3rem 0.6rem;
-  border-radius: 8px;
-  color: white;
-  font-size: 0.8rem;
-  cursor: pointer;
-`;
-
-const TokenButton = styled.button`
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-`;
-
-const BalanceContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.9rem;
-  color: #a0a0a0;
-`;
-
-const UsdEquivalent = styled.div`
-  font-size: 0.9rem;
-  color: #a0a0a0;
-  text-align: right;
-`;
-
-const SwapTokensContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin: 1rem 0;
-`;
-
-const SwapTokensButton = styled(motion.button)`
-  background: #ff6b6b;
-  border: none;
-  padding: 0.8rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-`;
-
-const RateInfo = styled.div`
-  font-size: 0.9rem;
-  color: #a0a0a0;
-  text-align: center;
-`;
-
-const SwapButton = styled(motion.button)`
-  background: linear-gradient(90deg, #ff6b6b 0%, #ff8e53 100%);
-  border: none;
-  padding: 1rem;
-  border-radius: 12px;
-  color: white;
-  font-weight: 600;
-  font-size: 1.1rem;
-  cursor: pointer;
-  width: 100%;
-  margin-top: 1rem;
-
-  &:disabled {
-    background: #555;
-    cursor: not-allowed;
-  }
-`;
-
-const ModalOverlay = styled(motion.div)`
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`;
-
-const ModalContent = styled(motion.div)`
-  background: #1a1a2e;
-  border-radius: 20px;
-  padding: 2rem;
-  width: 90%;
-  max-width: 400px;
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-`;
-
-const ModalTitle = styled.h3`
-  font-size: 1.3rem;
-  font-weight: 600;
-`;
-
-const TokenGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 1rem;
-`;
-
-const TokenOption = styled(motion.div)`
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 1rem;
-  text-align: center;
-  cursor: pointer;
-`;
-
-const Notification = styled(motion.div)`
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #ff6b6b;
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-`;
-
-const SwapAnimation = styled.div`
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  display: ${(props) => (props.isSwapping ? "block" : "none")};
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`;
-
-const SwapNotification = styled(motion.div)`
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: ${(props) => (props.isSuccess ? "#28a745" : "#ff6b6b")};
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-`;
-
-const Footer = styled.footer`
-  text-align: center;
-  margin-top: 2rem;
-  color: #a0a0a0;
-  font-size: 0.9rem;
-`;
-
-const FooterText = styled.p`
-  opacity: 0.7;
-`;
-
-const FooterLink = styled.a`
-  color: #ff6b6b;
-  text-decoration: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`;
-
-const Particle = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: url('https://www.transparenttextures.com/patterns/stardust.png');
-  opacity: 0.05;
-`;
-
-const ParticleBottom = styled.div`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 200px;
-  background: linear-gradient(to top, rgba(255, 107, 107, 0.1), transparent);
-`;
