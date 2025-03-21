@@ -23,8 +23,103 @@ const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
-// آدرس‌ها و تنظیمات
+// اطلاعات شبکه‌ها
+const networks = {
+  arbitrum: {
+    chainId: "0xa4b1",
+    name: "Arbitrum One",
+    rpcUrl: "https://arb1.arbitrum.io/rpc",
+    explorerUrl: "https://arbiscan.io",
+    nativeCurrency: { symbol: "ETH", decimals: 18 },
+    networkId: 42161, // برای ParaSwap
+  },
+  base: {
+    chainId: "0x2105",
+    name: "Base",
+    rpcUrl: "https://mainnet.base.org",
+    explorerUrl: "https://basescan.org",
+    nativeCurrency: { symbol: "ETH", decimals: 18 },
+    networkId: 8453, // برای ParaSwap
+  },
+  ethereum: {
+    chainId: "0x1",
+    name: "Ethereum Mainnet",
+    rpcUrl: "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", // جایگزین YOUR_INFURA_PROJECT_ID با کلید خود
+    explorerUrl: "https://etherscan.io",
+    nativeCurrency: { symbol: "ETH", decimals: 18 },
+    networkId: 1, // برای ParaSwap
+  },
+};
+
+// آدرس‌های توکن‌ها برای هر شبکه
+const tokenAddresses = {
+  arbitrum: {
+    ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+    WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+    ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+    UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
+    LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
+    WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+    GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
+    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  },
+  base: {
+    ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    WETH: "0x4200000000000000000000000000000000000006",
+    DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
+    // می‌توانید توکن‌های دیگر را اضافه کنید
+  },
+  ethereum: {
+    ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+    WBTC: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+    UNI: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+    LINK: "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+    WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  },
+};
+
+// اعشار توکن‌ها برای هر شبکه
+const tokenDecimals = {
+  arbitrum: {
+    ETH: 18,
+    USDC: 6,
+    DAI: 18,
+    WBTC: 8,
+    ARB: 18,
+    UNI: 18,
+    LINK: 18,
+    WETH: 18,
+    GMX: 18,
+    USDT: 6,
+  },
+  base: {
+    ETH: 18,
+    USDC: 6,
+    WETH: 18,
+    DAI: 18,
+  },
+  ethereum: {
+    ETH: 18,
+    USDC: 6,
+    DAI: 18,
+    WBTC: 8,
+    UNI: 18,
+    LINK: 18,
+    WETH: 18,
+    USDT: 6,
+  },
+};
+
+// آدرس پراکسی ParaSwap (مشترک برای همه شبکه‌ها)
 const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
+
+// ABI توکن ERC20
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -33,36 +128,9 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-const tokenAddresses = {
-  ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-  USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-  WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
-  ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
-  UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
-  LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
-  WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-  GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
-  USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
-};
-
-const tokenDecimals = {
-  ETH: 18,
-  USDC: 6,
-  DAI: 18,
-  WBTC: 8,
-  ARB: 18,
-  UNI: 18,
-  LINK: 18,
-  WETH: 18,
-  GMX: 18,
-  USDT: 6,
-};
-
-const tokens = Object.keys(tokenAddresses);
 const apiUrl = "https://apiv5.paraswap.io";
 
-// استایل‌ها
+// استایل‌ها (بدون تغییر نسبت به کد اصلی)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -140,7 +208,12 @@ const ConnectButton = styled(motion.button)`
   &:hover { background: #059669; }
 `;
 
-const NetworkIndicator = styled.div`
+const NetworkSelector = styled.div`
+  position: relative;
+  display: inline-block;
+`;
+
+const NetworkButton = styled.button`
   background: rgba(59, 130, 246, 0.2);
   color: #3b82f6;
   padding: 0.3rem 0.75rem;
@@ -150,6 +223,30 @@ const NetworkIndicator = styled.div`
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  cursor: pointer;
+`;
+
+const NetworkDropdown = styled.div`
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: rgba(31, 41, 55, 0.9);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  z-index: 10;
+`;
+
+const NetworkOption = styled.button`
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem;
+  color: white;
+  background: none;
+  border: none;
+  cursor: pointer;
+  &:hover { background: rgba(59, 130, 246, 0.2); }
 `;
 
 const WalletContainer = styled.div`
@@ -449,12 +546,7 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
   };
 
   return isSwapping ? (
-    <AnimationOverlay
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <AnimationOverlay initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
       <motion.div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <motion.div
           style={{
@@ -513,19 +605,24 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   );
 };
 
-const switchToArbitrum = async (provider) => {
+// تابع تغییر شبکه
+const switchNetwork = async (networkKey, provider) => {
+  const network = networks[networkKey];
   try {
-    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xa4b1" }] });
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: network.chainId }],
+    });
   } catch (error) {
     if (error.code === 4902) {
       await provider.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: "0xa4b1",
-          chainName: "Arbitrum One",
-          rpcUrls: ["https://arb1.arbitrum.io/rpc"],
-          nativeCurrency: { symbol: "ETH", decimals: 18 },
-          blockExplorerUrls: ["https://arbiscan.io"],
+          chainId: network.chainId,
+          chainName: network.name,
+          rpcUrls: [network.rpcUrl],
+          nativeCurrency: network.nativeCurrency,
+          blockExplorerUrls: [network.explorerUrl],
         }],
       });
     } else {
@@ -562,12 +659,14 @@ function Swap() {
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
-  const [currentNetwork, setCurrentNetwork] = useState("Arbitrum");
+  const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
+  const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
 
+  // تابع دریافت موجودی توکن
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
     try {
-      const tokenAddress = tokenAddresses[tokenSymbol];
+      const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
       let balance;
       if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
         balance = await provider.getBalance(userAddress);
@@ -575,13 +674,14 @@ function Swap() {
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         balance = await tokenContract.balanceOf(userAddress);
       }
-      return ethers.formatUnits(balance, tokenDecimals[tokenSymbol]);
+      return ethers.formatUnits(balance, tokenDecimals[currentNetwork][tokenSymbol]);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol}:`, error);
       return "0";
     }
   };
 
+  // به‌روزرسانی موجودی‌ها
   useEffect(() => {
     const updateBalances = async () => {
       if (isConnected && address && provider) {
@@ -592,8 +692,9 @@ function Swap() {
       }
     };
     updateBalances();
-  }, [isConnected, address, provider, tokenFrom, tokenTo]);
+  }, [isConnected, address, provider, tokenFrom, tokenTo, currentNetwork]);
 
+  // دریافت نرخ بهینه
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
@@ -604,12 +705,12 @@ function Swap() {
       setIsPriceRouteReady(false);
       setUsdEquivalent("");
     }
-  }, [amountFrom, tokenFrom, tokenTo]);
+  }, [amountFrom, tokenFrom, tokenTo, currentNetwork]);
 
   const fetchBestRate = async () => {
     try {
       setIsPriceRouteReady(false);
-      const amountFromInWei = ethers.parseUnits(amountFrom || "0", tokenDecimals[tokenFrom]);
+      const amountFromInWei = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom]);
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -619,7 +720,7 @@ function Swap() {
       }
 
       const response = await fetch(
-        `${apiUrl}/prices?srcToken=${tokenAddresses[tokenFrom]}&destToken=${tokenAddresses[tokenTo]}&amount=${amountFromInWei.toString()}&srcDecimals=${tokenDecimals[tokenFrom]}&destDecimals=${tokenDecimals[tokenTo]}&side=SELL&network=42161`,
+        `${apiUrl}/prices?srcToken=${tokenAddresses[currentNetwork][tokenFrom]}&destToken=${tokenAddresses[currentNetwork][tokenTo]}&amount=${amountFromInWei.toString()}&srcDecimals=${tokenDecimals[currentNetwork][tokenFrom]}&destDecimals=${tokenDecimals[currentNetwork][tokenTo]}&side=SELL&network=${networks[currentNetwork].networkId}`,
         { signal: abortController.signal }
       );
 
@@ -642,18 +743,17 @@ function Swap() {
       if (data.priceRoute) {
         setPriceRoute(data.priceRoute);
         const rawDestAmount = data.priceRoute.destAmount;
-        const formattedAmountTo = ethers.formatUnits(rawDestAmount, tokenDecimals[tokenTo]);
+        const formattedAmountTo = ethers.formatUnits(rawDestAmount, tokenDecimals[currentNetwork][tokenTo]);
         setAmountTo(formattedAmountTo);
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
-        // محاسبه معادل USD
         let usdValue;
         if (tokenFrom === "USDC") {
           usdValue = Number(amountFrom).toFixed(2);
         } else {
           const srcUSD = data.priceRoute.srcUSD || 1;
-          const srcAmount = Number(ethers.formatUnits(amountFromInWei, tokenDecimals[tokenFrom]));
+          const srcAmount = Number(ethers.formatUnits(amountFromInWei, tokenDecimals[currentNetwork][tokenFrom]));
           usdValue = (srcAmount * srcUSD).toFixed(2);
         }
         setUsdEquivalent(`≈ $${usdValue} USD`);
@@ -675,6 +775,7 @@ function Swap() {
     }
   };
 
+  // تخمین گس
   const estimateGas = async () => {
     if (signer && priceRoute) {
       try {
@@ -692,7 +793,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // نرخ پیش‌فرض
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -710,8 +811,9 @@ function Swap() {
     if (isPriceRouteReady) estimateGas();
   }, [isPriceRouteReady]);
 
+  // بررسی و تأیید توکن
   const checkAndApproveToken = async () => {
-    const srcTokenAddress = tokenAddresses[tokenFrom];
+    const srcTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
       console.log("No approval needed for ETH.");
       return true;
@@ -719,10 +821,12 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]);
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
+      if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
+        await switchNetwork(currentNetwork, window.ethereum);
+      }
 
       let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
       let allowanceBN = ethers.toBigInt(allowance.toString());
@@ -745,15 +849,16 @@ function Swap() {
     }
   };
 
+  // ساخت تراکنش
   const buildTransaction = async () => {
     if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: missing priceRoute or wallet connection");
 
-    const srcToken = tokenAddresses[tokenFrom];
-    const destToken = tokenAddresses[tokenTo];
-    const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[tokenFrom]).toString();
+    const srcToken = tokenAddresses[currentNetwork][tokenFrom];
+    const destToken = tokenAddresses[currentNetwork][tokenTo];
+    const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]).toString();
     const txData = { srcToken, destToken, srcAmount, destAmount: priceRoute.destAmount.toString(), priceRoute, userAddress: address };
 
-    const response = await fetch(`${apiUrl}/transactions/42161`, {
+    const response = await fetch(`${apiUrl}/transactions/${networks[currentNetwork].networkId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(txData),
@@ -766,6 +871,7 @@ function Swap() {
     return responseData;
   };
 
+  // اجرای سواپ
   const handleSwap = async () => {
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
@@ -791,7 +897,9 @@ function Swap() {
     setIsSwapping(true);
     try {
       const network = await provider.getNetwork();
-      if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
+      if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
+        await switchNetwork(currentNetwork, window.ethereum);
+      }
 
       await checkAndApproveToken();
       await fetchBestRate();
@@ -827,19 +935,22 @@ function Swap() {
     setIsModalOpen(false);
   };
 
+  // اتصال کیف‌پول
   const handleConnect = async () => {
     try {
       if (window.ethereum) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const network = await provider.getNetwork();
-        if (network.chainId !== 42161n) await switchToArbitrum(window.ethereum);
+        const networkKey = Object.keys(networks).find(key => ethers.toBigInt(networks[key].chainId) === network.chainId) || "arbitrum";
+        if (!networkKey) await switchNetwork("arbitrum", window.ethereum);
         const signer = await provider.getSigner();
         const userAddress = await signer.getAddress();
         setProvider(provider);
         setSigner(signer);
         setAddress(userAddress);
         setIsConnected(true);
+        setCurrentNetwork(networkKey);
       } else {
         setErrorMessage("MetaMask is not installed!");
         setIsNotificationVisible(true);
@@ -862,6 +973,7 @@ function Swap() {
     setTokenToBalance("0");
   };
 
+  // جستجوی توکن سفارشی
   const searchToken = async () => {
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
@@ -873,11 +985,11 @@ function Swap() {
     if (ethers.isAddress(customTokenAddress)) {
       try {
         const network = await provider.getNetwork();
-        if (network.chainId !== 42161n) {
-          setErrorMessage("Connected to wrong network. Switch to Arbitrum.");
+        if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
+          setErrorMessage(`Connected to wrong network. Switch to ${networks[currentNetwork].name}.`);
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
-          await switchToArbitrum(provider);
+          await switchNetwork(currentNetwork, provider);
           return;
         }
 
@@ -913,7 +1025,25 @@ function Swap() {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) setAmountFrom(tokenFromBalance);
   };
 
-  // تابع کمکی برای نمایش نام توکن
+  // تغییر شبکه
+  const handleNetworkChange = async (networkKey) => {
+    try {
+      await switchNetwork(networkKey, window.ethereum);
+      setCurrentNetwork(networkKey);
+      setIsNetworkDropdownOpen(false);
+      setTokenFrom("USDC");
+      setTokenTo("ETH");
+      setAmountFrom("5");
+      setAmountTo("");
+      setBestDex("Fetching...");
+    } catch (error) {
+      console.error("Network switch failed:", error);
+      setErrorMessage(`Failed to switch network: ${error.message}`);
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
+    }
+  };
+
   const displayToken = (token) => token === "USDC" ? "USD" : token;
 
   return (
@@ -934,7 +1064,21 @@ function Swap() {
             <BetaTag>Beta</BetaTag>
           </HeaderTitle>
           <WalletContainer>
-            <NetworkIndicator><span>{currentNetwork}</span></NetworkIndicator>
+            <NetworkSelector>
+              <NetworkButton onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}>
+                <span>{networks[currentNetwork].name}</span>
+                <ChevronDown size={16} />
+              </NetworkButton>
+              {isNetworkDropdownOpen && (
+                <NetworkDropdown>
+                  {Object.entries(networks).map(([key, network]) => (
+                    <NetworkOption key={key} onClick={() => handleNetworkChange(key)}>
+                      {network.name}
+                    </NetworkOption>
+                  ))}
+                </NetworkDropdown>
+              )}
+            </NetworkSelector>
             <ConnectButton onClick={isConnected ? disconnectWallet : handleConnect} whileHover={{ scale: 1.05 }}>
               {isConnected ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connect Wallet"}
             </ConnectButton>
@@ -1038,7 +1182,7 @@ function Swap() {
                 <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
               </ModalHeader>
               <TokenGrid>
-                {tokens.map((token) => (
+                {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
                   <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {displayToken(token)}
                   </TokenOption>
@@ -1065,7 +1209,7 @@ function Swap() {
         {swapNotification && <SwapNotification message={swapNotification.message} isSuccess={swapNotification.isSuccess} onClose={() => setSwapNotification(null)} />}
 
         <Footer>
-          <FooterText>Powered by TradePulse | Built on Arbitrum | <FooterLink href="#">Learn More</FooterLink></FooterText>
+          <FooterText>Powered by TradePulse | Multi-Chain DEX | <FooterLink href="#">Learn More</FooterLink></FooterText>
         </Footer>
       </AppContainer>
     </>
