@@ -44,7 +44,7 @@ const networks = {
   ethereum: {
     chainId: "0x1",
     name: "Ethereum Mainnet",
-    rpcUrl: "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID", // جایگزین YOUR_INFURA_PROJECT_ID با کلید خود
+    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`, // جایگزین YOUR_INFURA_PROJECT_ID با کلید خود
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1, // برای ParaSwap
