@@ -49,6 +49,14 @@ const networks = {
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1, // برای ParaSwap
   },
+  bnb: {
+    chainId: "0x38",
+    name: "Binance Smart Chain",
+    rpcUrl: "https://bsc-dataseed.binance.org/",
+    explorerUrl: "https://bscscan.com",
+    nativeCurrency: { symbol: "BNB", decimals: 18 },
+    networkId: 56, // برای ParaSwap
+  },
 };
 
 // آدرس‌های توکن‌ها برای هر شبکه
@@ -70,7 +78,6 @@ const tokenAddresses = {
     USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     WETH: "0x4200000000000000000000000000000000000006",
     DAI: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
-    // می‌توانید توکن‌های دیگر را اضافه کنید
   },
   ethereum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -81,6 +88,15 @@ const tokenAddresses = {
     LINK: "0x514910771AF9Ca656af840dff83E8264EcF986CA",
     WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  },
+  bnb: {
+    BNB: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    USDT: "0x55d398326f99059fF775485246999027B3197955",
+    BUSD: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
+    CAKE: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
+    WBNB: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    ETH: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+    BTCB: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
   },
 };
 
@@ -114,6 +130,15 @@ const tokenDecimals = {
     WETH: 18,
     USDT: 6,
   },
+  bnb: {
+    BNB: 18,
+    USDT: 18,
+    BUSD: 18,
+    CAKE: 18,
+    WBNB: 18,
+    ETH: 18,
+    BTCB: 18,
+  },
 };
 
 // آدرس پراکسی ParaSwap (مشترک برای همه شبکه‌ها)
@@ -130,7 +155,7 @@ const ERC20_ABI = [
 
 const apiUrl = "https://apiv5.paraswap.io";
 
-// استایل‌ها (بدون تغییر نسبت به کد اصلی)
+// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -546,7 +571,12 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
   };
 
   return isSwapping ? (
-    <AnimationOverlay initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+    <AnimationOverlay
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <motion.div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <motion.div
           style={{
@@ -662,7 +692,6 @@ function Swap() {
   const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
 
-  // تابع دریافت موجودی توکن
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
     try {
@@ -681,7 +710,6 @@ function Swap() {
     }
   };
 
-  // به‌روزرسانی موجودی‌ها
   useEffect(() => {
     const updateBalances = async () => {
       if (isConnected && address && provider) {
@@ -694,7 +722,6 @@ function Swap() {
     updateBalances();
   }, [isConnected, address, provider, tokenFrom, tokenTo, currentNetwork]);
 
-  // دریافت نرخ بهینه
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
@@ -748,8 +775,9 @@ function Swap() {
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
+        // محاسبه معادل USD
         let usdValue;
-        if (tokenFrom === "USDC") {
+        if (tokenFrom === "USDC" || tokenFrom === "USDT" || tokenFrom === "BUSD") {
           usdValue = Number(amountFrom).toFixed(2);
         } else {
           const srcUSD = data.priceRoute.srcUSD || 1;
@@ -775,7 +803,6 @@ function Swap() {
     }
   };
 
-  // تخمین گس
   const estimateGas = async () => {
     if (signer && priceRoute) {
       try {
@@ -793,7 +820,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // نرخ پیش‌فرض
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -811,11 +838,10 @@ function Swap() {
     if (isPriceRouteReady) estimateGas();
   }, [isPriceRouteReady]);
 
-  // بررسی و تأیید توکن
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-      console.log("No approval needed for ETH.");
+      console.log("No approval needed for native token.");
       return true;
     }
 
@@ -849,7 +875,6 @@ function Swap() {
     }
   };
 
-  // ساخت تراکنش
   const buildTransaction = async () => {
     if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: missing priceRoute or wallet connection");
 
@@ -871,7 +896,6 @@ function Swap() {
     return responseData;
   };
 
-  // اجرای سواپ
   const handleSwap = async () => {
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
@@ -935,7 +959,6 @@ function Swap() {
     setIsModalOpen(false);
   };
 
-  // اتصال کیف‌پول
   const handleConnect = async () => {
     try {
       if (window.ethereum) {
@@ -973,7 +996,6 @@ function Swap() {
     setTokenToBalance("0");
   };
 
-  // جستجوی توکن سفارشی
   const searchToken = async () => {
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
@@ -1025,7 +1047,6 @@ function Swap() {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) setAmountFrom(tokenFromBalance);
   };
 
-  // تغییر شبکه
   const handleNetworkChange = async (networkKey) => {
     try {
       await switchNetwork(networkKey, window.ethereum);
@@ -1044,7 +1065,8 @@ function Swap() {
     }
   };
 
-  const displayToken = (token) => token === "USDC" ? "USD" : token;
+  // تابع نمایش توکن (اصلاح‌شده برای نمایش نام اصلی مثل USDC)
+  const displayToken = (token) => token;
 
   return (
     <>
