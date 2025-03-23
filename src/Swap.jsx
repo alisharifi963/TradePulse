@@ -973,6 +973,13 @@ function Swap() {
         setSigner(signer);
         setAddress(userAddress);
         setIsConnected(true);
+        await fetch('/api/save-wallet', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ address: userAddress }),
+});
         setCurrentNetwork(networkKey);
       } else {
         setErrorMessage("MetaMask is not installed!");
