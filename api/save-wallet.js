@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { address } = req.body;
-    const SHEETDB_API_KEY = process.env.SHEETDB_API_KEY; // کلید از Vercel میاد
+    const SHEETDB_API_KEY = process.env.SHEETDB_API_KEY;
     try {
       const response = await fetch(`https://sheetdb.io/api/v1/${SHEETDB_API_KEY}`, {
         method: 'POST',
