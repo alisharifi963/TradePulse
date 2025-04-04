@@ -59,7 +59,7 @@ const networks = {
   },
 };
 
-// آدرس‌های توکن‌ها برای هر شبکه (USDC روی Arbitrum اصلاح شد)
+// آدرس‌های توکن‌ها برای هر شبکه
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -757,10 +757,13 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
-          excludeDirectContractCalls: "false",
+          excludeContractMethodsWithoutFee: "false", // جایگزین excludeDirectContractCalls
           version: API_VERSION, // اضافه کردن پارامتر version=6.2
           userAddress: address || "0x0000000000000000000000000000000000000000", // برای دریافت Transaction Object
+          slippage: "100", // 1% slippage (100 basis points)
         });
+
+      console.log("Fetching price and tx data from URL:", url);
 
       const response = await fetch(url, { signal: abortController.signal });
 
@@ -903,6 +906,10 @@ function Swap() {
       userAddress: address,
       receiver: address,
       slippage: 100, // 1% slippage (100 basis points)
+      // پارامترهای کارمزد شریک (اختیاری)
+      isCapSurplus: false,
+      isSurplusToUser: false,
+      isDirectFeeTransfer: false,
     };
 
     const url = `${apiUrl}/transactions/${networks[currentNetwork].networkId}?version=${API_VERSION}`;
