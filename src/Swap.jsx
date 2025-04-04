@@ -64,7 +64,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // Updated to ParaSwap-preferred USDC address on Arbitrum
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -629,7 +629,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         </div>
         <button
           onClick={onClose}
-          style={{ background: "rgba(255, 255, 2 55, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}
+          style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}
         >
           OK
         </button>
@@ -783,7 +783,7 @@ function Swap() {
         return;
       }
 
-      const url = `${apiUrl}/prices?` +
+      const url = `${apiUrl}/swap/prices?` + // Updated endpoint to /swap/prices
         new URLSearchParams({
           srcToken: tokenAddresses[currentNetwork][tokenFrom],
           destToken: tokenAddresses[currentNetwork][tokenTo],
@@ -792,7 +792,7 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
-          excludeDirectContractCalls: "false", // Updated to match v6.2 documentation
+          excludeDirectContractCalls: "false",
         });
       console.log("Fetching price from URL:", url);
 
