@@ -96,7 +96,7 @@ const tokenAddresses = {
     BUSD: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
     CAKE: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
     WBNB: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-    ETH: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", // Fixed: Combined into a single line
+    ETH: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
     BTCB: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
   },
 };
@@ -155,7 +155,7 @@ const ERC20_ABI = [
 ];
 
 // ParaSwap API configuration
-const API_VERSION = "6.2"; // Reverted to 6.2 as per the documentation
+const API_VERSION = "6.2"; // As per the documentation
 const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
 
 // Styles
@@ -863,7 +863,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = eth ethPriceData.ethereum.usd || 1000; // Default price if API fails
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // Fixed: Removed extra "eth"
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -1272,7 +1272,7 @@ function Swap() {
                 <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
               </ModalHeader>
               <TokenGrid>
-                {Object.keys(tokenAddress[currentNetwork]).map((token) => (
+                {Object.keys(tokenAddresses[currentNetwork]).map((token) => ( // Fixed: Changed tokenAddress to tokenAddresses
                   <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {displayToken(token)}
                   </TokenOption>
