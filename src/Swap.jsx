@@ -64,7 +64,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // Updated to ParaSwap-preferred USDC address on Arbitrum
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // ParaSwap-preferred USDC address on Arbitrum
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -155,8 +155,12 @@ const ERC20_ABI = [
 ];
 
 // ParaSwap API configuration
-const API_VERSION = "6.2";
+const API_VERSION = "5.2"; // Fallback to v5.2, which doesn't require an API key
 const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
+// If you have a ParaSwap API key for v6.2, uncomment the following lines:
+// const API_VERSION = "6.2";
+// const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
+// const PARASWAP_API_KEY = "YOUR_PARASWAP_API_KEY"; // Replace with your API key
 
 // Styles
 const AppContainer = styled.div`
@@ -783,7 +787,7 @@ function Swap() {
         return;
       }
 
-      const url = `${apiUrl}/swap/prices?` + // Updated endpoint to /swap/prices
+      const url = `${apiUrl}/prices?` + // Reverted to /prices for v5.2
         new URLSearchParams({
           srcToken: tokenAddresses[currentNetwork][tokenFrom],
           destToken: tokenAddresses[currentNetwork][tokenTo],
@@ -792,11 +796,17 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
-          excludeDirectContractCalls: "false",
         });
       console.log("Fetching price from URL:", url);
 
-      const response = await fetch(url, { signal: abortController.signal });
+      const headers = {};
+      // If using v6.2 with an API key, uncomment the following line:
+      // headers["x-api-key"] = PARASWAP_API_KEY;
+
+      const response = await fetch(url, {
+        signal: abortController.signal,
+        headers,
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -946,9 +956,14 @@ function Swap() {
 
     const url = `${apiUrl}/transactions/${networks[currentNetwork].networkId}`;
     console.log("Fetching transaction from URL:", url);
+
+    const headers = {};
+    // If using v6.2 with an API key, uncomment the following line:
+    // headers["x-api-key"] = PARASWAP_API_KEY;
+
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(txData),
       signal: abortController.signal,
     });
