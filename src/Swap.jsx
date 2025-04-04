@@ -36,7 +36,7 @@ const networks = {
   base: {
     chainId: "0x2105",
     name: "Base",
-    // Replace with your Alchemy API key for better reliability
+    // Replace with your actual Alchemy API key
     rpcUrl: "https://base-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY",
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
@@ -155,7 +155,7 @@ const ERC20_ABI = [
 ];
 
 // ParaSwap API configuration
-const API_VERSION = "6.2"; // As per the documentation
+const API_VERSION = "6.2";
 const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
 
 // Styles
@@ -629,7 +629,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         </div>
         <button
           onClick={onClose}
-          style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}
+          style={{ background: "rgba(255, 255, 2 55, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}
         >
           OK
         </button>
@@ -714,6 +714,10 @@ function Swap() {
       } else {
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         balance = await tokenContract.balanceOf(userAddress);
+        if (!balance) {
+          console.error(`Failed to fetch balance for ${tokenSymbol} on ${currentNetwork}: Invalid response`);
+          return "0";
+        }
       }
       return ethers.formatUnits(balance, tokenDecimals[currentNetwork][tokenSymbol]);
     } catch (error) {
@@ -788,7 +792,7 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
-          excludeDirect: "false",
+          excludeDirectContractCalls: "false", // Updated to match v6.2 documentation
         });
       console.log("Fetching price from URL:", url);
 
@@ -796,6 +800,7 @@ function Swap() {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("ParaSwap API error response:", errorText);
         const parsedError = JSON.parse(errorText);
         if (parsedError.error === "ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT") {
           setAmountTo("0.000000");
@@ -863,7 +868,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // Fixed: Removed extra "eth"
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -1272,7 +1277,7 @@ function Swap() {
                 <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
               </ModalHeader>
               <TokenGrid>
-                {Object.keys(tokenAddresses[currentNetwork]).map((token) => ( // Fixed: Changed tokenAddress to tokenAddresses
+                {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
                   <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {displayToken(token)}
                   </TokenOption>
