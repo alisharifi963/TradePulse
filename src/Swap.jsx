@@ -818,7 +818,7 @@ function Swap() {
     }
   };
 
-  const estimateGas = async () => Ascync BR (index-dl-j2rRzj.js:445:6573) {
+  const estimateGas = async () => {
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
