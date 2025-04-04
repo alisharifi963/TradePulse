@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 
-// Global styles
+// استایل سراسری
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -23,7 +23,7 @@ const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
-// Network configurations
+// اطلاعات شبکه‌ها
 const networks = {
   arbitrum: {
     chainId: "0xa4b1",
@@ -31,24 +31,23 @@ const networks = {
     rpcUrl: "https://arb1.arbitrum.io/rpc",
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
-    networkId: 42161,
+    networkId: 42161, // برای ParaSwap
   },
   base: {
     chainId: "0x2105",
     name: "Base",
-    // Replace with your actual Alchemy API key
-    rpcUrl: "https://base-mainnet.g.alchemy.com/v2/YOUR_ALCHEMY_API_KEY",
+    rpcUrl: "https://mainnet.base.org",
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
-    networkId: 8453,
+    networkId: 8453, // برای ParaSwap
   },
   ethereum: {
     chainId: "0x1",
     name: "Ethereum Mainnet",
-    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`, // جایگزین YOUR_INFURA_PROJECT_ID با کلید خود
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
-    networkId: 1,
+    networkId: 1, // برای ParaSwap
   },
   bnb: {
     chainId: "0x38",
@@ -56,15 +55,15 @@ const networks = {
     rpcUrl: "https://bsc-dataseed.binance.org/",
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
-    networkId: 56,
+    networkId: 56, // برای ParaSwap
   },
 };
 
-// Token addresses for each network
+// آدرس‌های توکن‌ها برای هر شبکه (USDC روی Arbitrum اصلاح شد)
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // ParaSwap-preferred USDC address on Arbitrum
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // آدرس درست USDC روی Arbitrum
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -101,7 +100,7 @@ const tokenAddresses = {
   },
 };
 
-// Token decimals for each network
+// اعشار توکن‌ها برای هر شبکه
 const tokenDecimals = {
   arbitrum: {
     ETH: 18,
@@ -142,10 +141,10 @@ const tokenDecimals = {
   },
 };
 
-// ParaSwap proxy address (common for all networks)
+// آدرس پراکسی ParaSwap (مشترک برای همه شبکه‌ها)
 const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
 
-// ERC20 ABI
+// ABI توکن ERC20
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -154,15 +153,11 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// ParaSwap API configuration
-const API_VERSION = "5.2"; // Fallback to v5.2, which doesn't require an API key
-const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
-// If you have a ParaSwap API key for v6.2, uncomment the following lines:
-// const API_VERSION = "6.2";
-// const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
-// const PARASWAP_API_KEY = "YOUR_PARASWAP_API_KEY"; // Replace with your API key
+// URL پایه ParaSwap برای ورژن 6.2
+const API_VERSION = "6.2";
+const apiUrl = "https://api.paraswap.io";
 
-// Styles
+// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -642,7 +637,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   );
 };
 
-// Function to switch network
+// تابع تغییر شبکه
 const switchNetwork = async (networkKey, provider) => {
   const network = networks[networkKey];
   try {
@@ -650,7 +645,6 @@ const switchNetwork = async (networkKey, provider) => {
       method: "wallet_switchEthereumChain",
       params: [{ chainId: network.chainId }],
     });
-    console.log(`Switched to ${network.name}`);
   } catch (error) {
     if (error.code === 4902) {
       await provider.request({
@@ -663,15 +657,12 @@ const switchNetwork = async (networkKey, provider) => {
           blockExplorerUrls: [network.explorerUrl],
         }],
       });
-      console.log(`Added and switched to ${network.name}`);
     } else {
-      console.error(`Failed to switch to ${network.name}:`, error);
       throw error;
     }
   }
 };
 
-// Utility function for delay
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function Swap() {
@@ -703,34 +694,24 @@ function Swap() {
   const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
 
-  // Fetch token balance with improved error handling
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
     try {
       const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
-      if (!tokenAddress) {
-        console.error(`Token address for ${tokenSymbol} on ${currentNetwork} not found`);
-        return "0";
-      }
       let balance;
       if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
         balance = await provider.getBalance(userAddress);
       } else {
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         balance = await tokenContract.balanceOf(userAddress);
-        if (!balance) {
-          console.error(`Failed to fetch balance for ${tokenSymbol} on ${currentNetwork}: Invalid response`);
-          return "0";
-        }
       }
       return ethers.formatUnits(balance, tokenDecimals[currentNetwork][tokenSymbol]);
     } catch (error) {
-      console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error);
+      console.error(`Error fetching balance for ${tokenSymbol}:`, error);
       return "0";
     }
   };
 
-  // Update balances when connected
   useEffect(() => {
     const updateBalances = async () => {
       if (isConnected && address && provider) {
@@ -743,25 +724,6 @@ function Swap() {
     updateBalances();
   }, [isConnected, address, provider, tokenFrom, tokenTo, currentNetwork]);
 
-  // Test the provider connection
-  useEffect(() => {
-    const testProvider = async () => {
-      if (provider) {
-        try {
-          const blockNumber = await provider.getBlockNumber();
-          console.log(`Connected to ${currentNetwork}, block number: ${blockNumber}`);
-        } catch (error) {
-          console.error("RPC provider test failed:", error);
-          setErrorMessage("Failed to connect to the network. Please check your RPC provider.");
-          setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 3000);
-        }
-      }
-    };
-    testProvider();
-  }, [provider, currentNetwork]);
-
-  // Fetch best rate when inputs change
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
@@ -774,7 +736,6 @@ function Swap() {
     }
   }, [amountFrom, tokenFrom, tokenTo, currentNetwork]);
 
-  // Fetch the best rate from ParaSwap
   const fetchBestRate = async () => {
     try {
       setIsPriceRouteReady(false);
@@ -787,7 +748,7 @@ function Swap() {
         return;
       }
 
-      const url = `${apiUrl}/prices?` + // Reverted to /prices for v5.2
+      const url = `${apiUrl}/swap?` +
         new URLSearchParams({
           srcToken: tokenAddresses[currentNetwork][tokenFrom],
           destToken: tokenAddresses[currentNetwork][tokenTo],
@@ -796,21 +757,15 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
+          excludeDirectContractCalls: "false",
+          version: API_VERSION, // اضافه کردن پارامتر version=6.2
+          userAddress: address || "0x0000000000000000000000000000000000000000", // برای دریافت Transaction Object
         });
-      console.log("Fetching price from URL:", url);
 
-      const headers = {};
-      // If using v6.2 with an API key, uncomment the following line:
-      // headers["x-api-key"] = PARASWAP_API_KEY;
-
-      const response = await fetch(url, {
-        signal: abortController.signal,
-        headers,
-      });
+      const response = await fetch(url, { signal: abortController.signal });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("ParaSwap API error response:", errorText);
         const parsedError = JSON.parse(errorText);
         if (parsedError.error === "ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT") {
           setAmountTo("0.000000");
@@ -833,6 +788,7 @@ function Swap() {
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
+        // محاسبه معادل USD
         let usdValue;
         if (tokenFrom === "USDC" || tokenFrom === "USDT" || tokenFrom === "BUSD") {
           usdValue = Number(amountFrom).toFixed(2);
@@ -860,7 +816,6 @@ function Swap() {
     }
   };
 
-  // Estimate gas for the transaction
   const estimateGas = async () => {
     if (signer && priceRoute) {
       try {
@@ -878,7 +833,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // نرخ پیش‌فرض
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -896,7 +851,6 @@ function Swap() {
     if (isPriceRouteReady) estimateGas();
   }, [isPriceRouteReady]);
 
-  // Check and approve token if necessary
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
     if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
@@ -934,15 +888,12 @@ function Swap() {
     }
   };
 
-  // Build the transaction for ParaSwap
   const buildTransaction = async () => {
     if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: missing priceRoute or wallet connection");
-    if (!priceRoute.destAmount) throw new Error("Invalid priceRoute: missing destAmount");
 
     const srcToken = tokenAddresses[currentNetwork][tokenFrom];
     const destToken = tokenAddresses[currentNetwork][tokenTo];
     const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]).toString();
-
     const txData = {
       srcToken,
       destToken,
@@ -954,16 +905,10 @@ function Swap() {
       slippage: 100, // 1% slippage (100 basis points)
     };
 
-    const url = `${apiUrl}/transactions/${networks[currentNetwork].networkId}`;
-    console.log("Fetching transaction from URL:", url);
-
-    const headers = {};
-    // If using v6.2 with an API key, uncomment the following line:
-    // headers["x-api-key"] = PARASWAP_API_KEY;
-
+    const url = `${apiUrl}/transactions/${networks[currentNetwork].networkId}?version=${API_VERSION}`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(txData),
       signal: abortController.signal,
     });
@@ -974,7 +919,6 @@ function Swap() {
     return responseData;
   };
 
-  // Handle the swap transaction
   const handleSwap = async () => {
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
@@ -1038,7 +982,6 @@ function Swap() {
     setIsModalOpen(false);
   };
 
-  // Connect to wallet
   const handleConnect = async () => {
     try {
       if (window.ethereum) {
@@ -1083,7 +1026,6 @@ function Swap() {
     setTokenToBalance("0");
   };
 
-  // Search for a custom token by contract address
   const searchToken = async () => {
     if (!isConnected) {
       setErrorMessage("Please connect your wallet first!");
@@ -1135,7 +1077,6 @@ function Swap() {
     if (tokenFromBalance && Number(tokenFromBalance) > 0) setAmountFrom(tokenFromBalance);
   };
 
-  // Handle network change
   const handleNetworkChange = async (networkKey) => {
     try {
       await switchNetwork(networkKey, window.ethereum);
@@ -1154,6 +1095,7 @@ function Swap() {
     }
   };
 
+  // تابع نمایش توکن (اصلاح‌شده برای نمایش نام اصلی مثل USDC)
   const displayToken = (token) => token;
 
   return (
@@ -1254,7 +1196,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* Add USD equivalent for tokenTo if needed */}</UsdEquivalent>
+                <UsdEquivalent>{/* می‌توانید معادل USD برای tokenTo را هم اضافه کنید */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
