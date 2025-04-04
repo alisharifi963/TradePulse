@@ -59,11 +59,11 @@ const networks = {
   },
 };
 
-// آدرس‌های توکن‌ها برای هر شبکه
+// آدرس‌های توکن‌ها برای هر شبکه (USDC روی Arbitrum تغییر کرد)
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // آدرس درست USDC روی Arbitrum
+    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e583", // تغییر آدرس USDC برای تست
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -156,6 +156,21 @@ const ERC20_ABI = [
 // URL پایه ParaSwap برای ورژن 6.2
 const API_VERSION = "6.2";
 const apiUrl = "https://api.paraswap.io";
+
+// تابع برای گرفتن لیست توکن‌های پشتیبانی‌شده
+const fetchSupportedTokens = async (networkId) => {
+  try {
+    const response = await fetch(`${apiUrl}/tokens/${networkId}?version=${API_VERSION}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tokens: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.tokens; // لیست توکن‌ها
+  } catch (error) {
+    console.error("Error fetching supported tokens:", error);
+    return [];
+  }
+};
 
 // استایل‌ها
 const AppContainer = styled.div`
@@ -693,6 +708,34 @@ function Swap() {
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
+  const [supportedTokens, setSupportedTokens] = useState([]);
+
+  // گرفتن لیست توکن‌های پشتیبانی‌شده هنگام لود شدن کامپوننت
+  useEffect(() => {
+    const loadSupportedTokens = async () => {
+      const tokens = await fetchSupportedTokens(networks[currentNetwork].networkId);
+      setSupportedTokens(tokens);
+      console.log("Supported tokens on network", networks[currentNetwork].networkId, ":", tokens);
+
+      // بررسی اینکه آیا USDC توی لیست هست یا نه
+      const usdcToken = tokens.find(token => token.symbol === "USDC");
+      if (usdcToken) {
+        console.log("Found USDC token:", usdcToken);
+        // اگه آدرس USDC توی لیست با آدرس فعلی فرق داره، می‌تونی آدرس رو به‌روزرسانی کنی
+        if (usdcToken.address.toLowerCase() !== tokenAddresses[currentNetwork].USDC.toLowerCase()) {
+          console.warn("USDC address mismatch! Updating to:", usdcToken.address);
+          tokenAddresses[currentNetwork].USDC = usdcToken.address;
+        }
+      } else {
+        console.warn("USDC not found in supported tokens! Consider using a different token.");
+        setErrorMessage("USDC is not supported on this network. Please select a different token.");
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+      }
+    };
+
+    loadSupportedTokens();
+  }, [currentNetwork]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -757,10 +800,10 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
-          excludeContractMethodsWithoutFee: "false", // جایگزین excludeDirectContractCalls
-          version: API_VERSION, // اضافه کردن پارامتر version=6.2
-          userAddress: address || "0x0000000000000000000000000000000000000000", // برای دریافت Transaction Object
-          slippage: "100", // 1% slippage (100 basis points)
+          excludeContractMethodsWithoutFee: "false",
+          version: API_VERSION,
+          userAddress: address || "0x0000000000000000000000000000000000000000",
+          slippage: "100", // 1% slippage
         });
 
       console.log("Fetching price and tx data from URL:", url);
@@ -905,8 +948,7 @@ function Swap() {
       priceRoute,
       userAddress: address,
       receiver: address,
-      slippage: 100, // 1% slippage (100 basis points)
-      // پارامترهای کارمزد شریک (اختیاری)
+      slippage: 100, // 1% slippage
       isCapSurplus: false,
       isSurplusToUser: false,
       isDirectFeeTransfer: false,
@@ -1102,7 +1144,6 @@ function Swap() {
     }
   };
 
-  // تابع نمایش توکن (اصلاح‌شده برای نمایش نام اصلی مثل USDC)
   const displayToken = (token) => token;
 
   return (
