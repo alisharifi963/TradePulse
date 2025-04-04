@@ -155,7 +155,7 @@ const ERC20_ABI = [
 ];
 
 // ParaSwap API configuration
-const API_VERSION = "5.2"; // Use a stable version; update to 6.2 if confirmed supported
+const API_VERSION = "6.2"; // Reverted to 6.2 as per the documentation
 const apiUrl = `https://api.paraswap.io/v${API_VERSION}`;
 
 // Styles
@@ -863,7 +863,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // Default price if API fails
+        const ethPriceInUSD = eth ethPriceData.ethereum.usd || 1000; // Default price if API fails
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
@@ -1272,7 +1272,7 @@ function Swap() {
                 <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
               </ModalHeader>
               <TokenGrid>
-                {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
+                {Object.keys(tokenAddress[currentNetwork]).map((token) => (
                   <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {displayToken(token)}
                   </TokenOption>
