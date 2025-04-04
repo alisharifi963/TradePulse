@@ -31,7 +31,7 @@ const networks = {
     rpcUrl: "https://arb1.arbitrum.io/rpc",
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
-    networkId: 42161, // برای ParaSwap
+    networkId: 42161,
   },
   base: {
     chainId: "0x2105",
@@ -39,15 +39,15 @@ const networks = {
     rpcUrl: "https://mainnet.base.org",
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
-    networkId: 8453, // برای ParaSwap
+    networkId: 8453,
   },
   ethereum: {
     chainId: "0x1",
     name: "Ethereum Mainnet",
-    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`, // جایگزین YOUR_INFURA_PROJECT_ID با کلید خود
+    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
-    networkId: 1, // برای ParaSwap
+    networkId: 1,
   },
   bnb: {
     chainId: "0x38",
@@ -55,15 +55,15 @@ const networks = {
     rpcUrl: "https://bsc-dataseed.binance.org/",
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
-    networkId: 56, // برای ParaSwap
+    networkId: 56,
   },
 };
 
-// آدرس‌های توکن‌ها برای هر شبکه (USDC روی Arbitrum تغییر کرد)
+// آدرس‌های توکن‌ها برای هر شبکه
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e583", // تغییر آدرس USDC برای تست
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // آدرس USDC روی Arbitrum
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -141,7 +141,7 @@ const tokenDecimals = {
   },
 };
 
-// آدرس پراکسی ParaSwap (مشترک برای همه شبکه‌ها)
+// آدرس پراکسی ParaSwap
 const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
 
 // ABI توکن ERC20
@@ -158,14 +158,14 @@ const API_VERSION = "6.2";
 const apiUrl = "https://api.paraswap.io";
 
 // تابع برای گرفتن لیست توکن‌های پشتیبانی‌شده
-const fetchSupportedTokens = async (networkId) => {
+const getSupportedTokens = async (networkId) => {
   try {
     const response = await fetch(`${apiUrl}/tokens/${networkId}?version=${API_VERSION}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch tokens: ${response.status}`);
     }
     const data = await response.json();
-    return data.tokens; // لیست توکن‌ها
+    return data.tokens;
   } catch (error) {
     console.error("Error fetching supported tokens:", error);
     return [];
@@ -633,7 +633,8 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
       <motion.div
         style={{ background, color: "white", padding: "1rem 2rem", borderRadius: "0.5rem", boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", maxWidth: "400px", textAlign: "center", wordBreak: "break-word" }}
         initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+        animate={{ scal
+e: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
@@ -713,29 +714,28 @@ function Swap() {
   // گرفتن لیست توکن‌های پشتیبانی‌شده هنگام لود شدن کامپوننت
   useEffect(() => {
     const loadSupportedTokens = async () => {
-      const tokens = await fetchSupportedTokens(networks[currentNetwork].networkId);
+      const tokens = await getSupportedTokens(networks[currentNetwork].networkId);
       setSupportedTokens(tokens);
       console.log("Supported tokens on network", networks[currentNetwork].networkId, ":", tokens);
 
-      // بررسی اینکه آیا USDC توی لیست هست یا نه
-      const usdcToken = tokens.find(token => token.symbol === "USDC");
-      if (usdcToken) {
-        console.log("Found USDC token:", usdcToken);
-        // اگه آدرس USDC توی لیست با آدرس فعلی فرق داره، می‌تونی آدرس رو به‌روزرسانی کنی
-        if (usdcToken.address.toLowerCase() !== tokenAddresses[currentNetwork].USDC.toLowerCase()) {
-          console.warn("USDC address mismatch! Updating to:", usdcToken.address);
-          tokenAddresses[currentNetwork].USDC = usdcToken.address;
-        }
-      } else {
-        console.warn("USDC not found in supported tokens! Consider using a different token.");
-        setErrorMessage("USDC is not supported on this network. Please select a different token.");
+      // بررسی اینکه آیا توکن‌های انتخاب‌شده پشتیبانی می‌شوند یا نه
+      const srcTokenSupported = tokens.some(token => token.address.toLowerCase() === tokenAddresses[currentNetwork][tokenFrom].toLowerCase());
+      const destTokenSupported = tokens.some(token => token.address.toLowerCase() === tokenAddresses[currentNetwork][tokenTo].toLowerCase());
+
+      if (!srcTokenSupported) {
+        setErrorMessage(`${tokenFrom} is not supported on this network. Please select a different token.`);
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+      }
+      if (!destTokenSupported) {
+        setErrorMessage(`${tokenTo} is not supported on this network. Please select a different token.`);
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     };
 
     loadSupportedTokens();
-  }, [currentNetwork]);
+  }, [currentNetwork, tokenFrom, tokenTo]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -803,7 +803,7 @@ function Swap() {
           excludeContractMethodsWithoutFee: "false",
           version: API_VERSION,
           userAddress: address || "0x0000000000000000000000000000000000000000",
-          slippage: "100", // 1% slippage
+          slippage: "100", // 1% slippage (100 basis points)
         });
 
       console.log("Fetching price and tx data from URL:", url);
@@ -879,7 +879,7 @@ function Swap() {
 
         const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
         const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000; // نرخ پیش‌فرض
+        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
         const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
 
         setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
