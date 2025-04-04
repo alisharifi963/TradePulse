@@ -44,7 +44,7 @@ const networks = {
   ethereum: {
     chainId: "0x1",
     name: "Ethereum Mainnet",
-    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`, // جایگزین YOUR_INFURA_PROJECT_ID با کلید خود
+    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1, // برای ParaSwap
@@ -153,7 +153,9 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-const apiUrl = "https://apiv5.paraswap.io";
+// تغییر URL پایه API به ورژن جدید
+const apiUrl = "https://api.paraswap.io";
+const API_VERSION = "6.2"; // ورژن API
 
 // استایل‌ها
 const AppContainer = styled.div`
@@ -746,8 +748,20 @@ function Swap() {
         return;
       }
 
+      // تغییر ساختار درخواست برای ورژن 6.2
       const response = await fetch(
-        `${apiUrl}/prices?srcToken=${tokenAddresses[currentNetwork][tokenFrom]}&destToken=${tokenAddresses[currentNetwork][tokenTo]}&amount=${amountFromInWei.toString()}&srcDecimals=${tokenDecimals[currentNetwork][tokenFrom]}&destDecimals=${tokenDecimals[currentNetwork][tokenTo]}&side=SELL&network=${networks[currentNetwork].networkId}`,
+        `${apiUrl}/prices?` +
+        new URLSearchParams({
+          srcToken: tokenAddresses[currentNetwork][tokenFrom],
+          destToken: tokenAddresses[currentNetwork][tokenTo],
+          amount: amountFromInWei.toString(),
+          srcDecimals: tokenDecimals[currentNetwork][tokenFrom].toString(),
+          destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
+          side: "SELL",
+          network: networks[currentNetwork].networkId.toString(),
+          version: API_VERSION, // اضافه کردن ورژن API
+          excludeDirect: "false", // پارامتر جدید در ورژن 6.2
+        }),
         { signal: abortController.signal }
       );
 
@@ -772,6 +786,7 @@ function Swap() {
         const rawDestAmount = data.priceRoute.destAmount;
         const formattedAmountTo = ethers.formatUnits(rawDestAmount, tokenDecimals[currentNetwork][tokenTo]);
         setAmountTo(formattedAmountTo);
+        // تغییر ساختار برای دریافت نام صرافی در ورژن 6.2
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
@@ -803,7 +818,7 @@ function Swap() {
     }
   };
 
-  const estimateGas = async () => {
+  const estimateGas = async () => Ascync BR (index-dl-j2rRzj.js:445:6573) {
     if (signer && priceRoute) {
       try {
         const txParams = await buildTransaction();
@@ -881,9 +896,20 @@ function Swap() {
     const srcToken = tokenAddresses[currentNetwork][tokenFrom];
     const destToken = tokenAddresses[currentNetwork][tokenTo];
     const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]).toString();
-    const txData = { srcToken, destToken, srcAmount, destAmount: priceRoute.destAmount.toString(), priceRoute, userAddress: address };
 
-    const response = await fetch(`${apiUrl}/transactions/${networks[currentNetwork].networkId}`, {
+    // تغییر ساختار درخواست برای ورژن 6.2
+    const txData = {
+      srcToken,
+      destToken,
+      srcAmount,
+      destAmount: priceRoute.destAmount.toString(),
+      priceRoute,
+      userAddress: address,
+      receiver: address, // اضافه کردن receiver در ورژن 6.2
+      slippage: 100, // 1% slippage (100 basis points)
+    };
+
+    const response = await fetch(`${apiUrl}/transactions/${networks[currentNetwork].networkId}?version=${API_VERSION}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(txData),
@@ -974,12 +1000,12 @@ function Swap() {
         setAddress(userAddress);
         setIsConnected(true);
         await fetch('/api/save-wallet', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ address: userAddress }),
-});
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ address: userAddress }),
+        });
         setCurrentNetwork(networkKey);
       } else {
         setErrorMessage("MetaMask is not installed!");
@@ -1072,7 +1098,6 @@ function Swap() {
     }
   };
 
-  // تابع نمایش توکن (اصلاح‌شده برای نمایش نام اصلی مثل USDC)
   const displayToken = (token) => token;
 
   return (
