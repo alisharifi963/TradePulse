@@ -160,7 +160,7 @@ const apiUrl = "https://api.paraswap.io";
 // تابع برای گرفتن لیست توکن‌های پشتیبانی‌شده
 const getSupportedTokens = async (networkId) => {
   try {
-    const response = await fetch(`${apiUrl}/tokens/${networkId}?version=${API_VERSION}`);
+    const response = await fetch(`${apiUrl}/tokens/${networkId}`);
     if (!response.ok) throw new Error(`Failed to fetch tokens: ${response.status}`);
     const data = await response.json();
     return data.tokens;
@@ -762,7 +762,6 @@ function Swap() {
 
   const fetchBestRate = async () => {
     try {
-      // چک کن که کیف‌پول وصل باشه و آدرس موجود باشه
       if (!isConnected || !address) {
         setAmountTo("");
         setBestDex("Please connect your wallet");
@@ -783,22 +782,16 @@ function Swap() {
         return;
       }
 
-      // اضافه کردن userAddress به پارامترهای درخواست
-      const url = `${apiUrl}/swap?` +
-        new URLSearchParams({
-          srcToken: tokenAddresses[currentNetwork][tokenFrom],
-          destToken: tokenAddresses[currentNetwork][tokenTo],
-          amount: amountFromInWei.toString(),
-          srcDecimals: tokenDecimals[currentNetwork][tokenFrom].toString(),
-          destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
-          side: "SELL",
-          network: networks[currentNetwork].networkId.toString(),
-          version: API_VERSION,
-          slippage: "100",
-          userAddress: address, // اضافه کردن آدرس کیف‌پول کاربر
-        });
+      const url = `${apiUrl}/v${API_VERSION}/prices?` + new URLSearchParams({
+        srcToken: tokenAddresses[currentNetwork][tokenFrom],
+        destToken: tokenAddresses[currentNetwork][tokenTo],
+        amount: amountFromInWei.toString(),
+        side: "SELL",
+        network: networks[currentNetwork].networkId.toString(),
+        userAddress: address,
+      });
 
-      console.log("Fetching price and tx data from URL:", url);
+      console.log("Fetching price data from URL:", url);
 
       const response = await fetch(url, { signal: abortController.signal });
 
@@ -939,13 +932,15 @@ function Swap() {
       priceRoute,
       userAddress: address,
       receiver: address,
-      slippage: 100, // اضافه کردن slippage
+      slippage: 100,
       isCapSurplus: false,
       isSurplusToUser: false,
       isDirectFeeTransfer: false,
     };
 
-    const url = `${apiUrl}/transactions/${networks[currentNetwork].networkId}?version=${API_VERSION}`;
+    const url = `${apiUrl}/v${API_VERSION}/transactions/${networks[currentNetwork].networkId}`;
+    console.log("Building transaction with URL:", url);
+
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1080,7 +1075,7 @@ function Swap() {
         if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
           setErrorMessage(`Connected to wrong network. Switch to ${networks[currentNetwork].name}.`);
           setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 3000);
+          setTimeout(() => setIsNotificationVisible(false), 	gb3000);
           await switchNetwork(currentNetwork, provider);
           return;
         }
