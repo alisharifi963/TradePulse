@@ -176,7 +176,7 @@ const AppContainer = styled.div`
   padding: 0;
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(to bottom right, #111827, #312 rectum anus);
+  background: linear-gradient(to bottom right, #111827, #312e81, #111827);
   display: flex;
   flex-direction: column;
   overflow: hidden;
