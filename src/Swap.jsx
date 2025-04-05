@@ -59,11 +59,11 @@ const networks = {
   },
 };
 
-// آدرس‌های توکن‌ها برای هر شبکه
+// آدرس‌های توکن‌ها
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC", // آدرس USDC روی Arbitrum
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -100,7 +100,7 @@ const tokenAddresses = {
   },
 };
 
-// اعشار توکن‌ها برای هر شبکه
+// اعشار توکن‌ها
 const tokenDecimals = {
   arbitrum: {
     ETH: 18,
@@ -153,7 +153,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// URL پایه ParaSwap برای ورژن 6.2
+// URL پایه ParaSwap
 const API_VERSION = "6.2";
 const apiUrl = "https://api.paraswap.io";
 
@@ -161,9 +161,7 @@ const apiUrl = "https://api.paraswap.io";
 const getSupportedTokens = async (networkId) => {
   try {
     const response = await fetch(`${apiUrl}/tokens/${networkId}?version=${API_VERSION}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch tokens: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Failed to fetch tokens: ${response.status}`);
     const data = await response.json();
     return data.tokens;
   } catch (error) {
@@ -633,8 +631,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
       <motion.div
         style={{ background, color: "white", padding: "1rem 2rem", borderRadius: "0.5rem", boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", maxWidth: "400px", textAlign: "center", wordBreak: "break-word" }}
         initial={{ scale: 0, opacity: 0 }}
-        animate={{ scal
-e: 1, opacity: 1 }}
+        animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
@@ -711,31 +708,15 @@ function Swap() {
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const [supportedTokens, setSupportedTokens] = useState([]);
 
-  // گرفتن لیست توکن‌های پشتیبانی‌شده هنگام لود شدن کامپوننت
+  // گرفتن لیست توکن‌های پشتیبانی‌شده
   useEffect(() => {
     const loadSupportedTokens = async () => {
       const tokens = await getSupportedTokens(networks[currentNetwork].networkId);
       setSupportedTokens(tokens);
-      console.log("Supported tokens on network", networks[currentNetwork].networkId, ":", tokens);
-
-      // بررسی اینکه آیا توکن‌های انتخاب‌شده پشتیبانی می‌شوند یا نه
-      const srcTokenSupported = tokens.some(token => token.address.toLowerCase() === tokenAddresses[currentNetwork][tokenFrom].toLowerCase());
-      const destTokenSupported = tokens.some(token => token.address.toLowerCase() === tokenAddresses[currentNetwork][tokenTo].toLowerCase());
-
-      if (!srcTokenSupported) {
-        setErrorMessage(`${tokenFrom} is not supported on this network. Please select a different token.`);
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-      }
-      if (!destTokenSupported) {
-        setErrorMessage(`${tokenTo} is not supported on this network. Please select a different token.`);
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-      }
+      console.log("Supported tokens:", tokens);
     };
-
     loadSupportedTokens();
-  }, [currentNetwork, tokenFrom, tokenTo]);
+  }, [currentNetwork]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -800,10 +781,8 @@ function Swap() {
           destDecimals: tokenDecimals[currentNetwork][tokenTo].toString(),
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
-          excludeContractMethodsWithoutFee: "false",
           version: API_VERSION,
-          userAddress: address || "0x0000000000000000000000000000000000000000",
-          slippage: "100", // 1% slippage (100 basis points)
+          slippage: "100", // اضافه کردن slippage به درخواست
         });
 
       console.log("Fetching price and tx data from URL:", url);
@@ -834,7 +813,6 @@ function Swap() {
         setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
         setIsPriceRouteReady(true);
 
-        // محاسبه معادل USD
         let usdValue;
         if (tokenFrom === "USDC" || tokenFrom === "USDT" || tokenFrom === "BUSD") {
           usdValue = Number(amountFrom).toFixed(2);
@@ -948,7 +926,7 @@ function Swap() {
       priceRoute,
       userAddress: address,
       receiver: address,
-      slippage: 100, // 1% slippage
+      slippage: 100, // اضافه کردن slippage
       isCapSurplus: false,
       isSurplusToUser: false,
       isDirectFeeTransfer: false,
@@ -1244,7 +1222,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* می‌توانید معادل USD برای tokenTo را هم اضافه کنید */}</UsdEquivalent>
+                <UsdEquivalent>{/* معادل USD برای tokenTo */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
