@@ -1075,7 +1075,7 @@ function Swap() {
         if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
           setErrorMessage(`Connected to wrong network. Switch to ${networks[currentNetwork].name}.`);
           setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 	gb3000);
+          setTimeout(() => setIsNotificationVisible(false), 3000);
           await switchNetwork(currentNetwork, provider);
           return;
         }
