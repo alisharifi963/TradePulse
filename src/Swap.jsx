@@ -749,7 +749,7 @@ function Swap() {
   }, [isConnected, address, provider, tokenFrom, tokenTo, currentNetwork]);
 
   useEffect(() => {
-    if (amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
+    if (isConnected && address && amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
       fetchBestRate();
     } else if (amountFrom && Number(amountFrom) <= 0) {
       setAmountTo("");
@@ -758,10 +758,21 @@ function Swap() {
       setIsPriceRouteReady(false);
       setUsdEquivalent("");
     }
-  }, [amountFrom, tokenFrom, tokenTo, currentNetwork]);
+  }, [isConnected, address, amountFrom, tokenFrom, tokenTo, currentNetwork]);
 
   const fetchBestRate = async () => {
     try {
+      // چک کن که کیف‌پول وصل باشه و آدرس موجود باشه
+      if (!isConnected || !address) {
+        setAmountTo("");
+        setBestDex("Please connect your wallet");
+        setPriceRoute(null);
+        setUsdEquivalent("");
+        setSwapNotification({ message: "Please connect your wallet to fetch rates.", isSuccess: false });
+        setTimeout(() => setSwapNotification(null), 3000);
+        return;
+      }
+
       setIsPriceRouteReady(false);
       const amountFromInWei = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom]);
       if (Number(amountFrom) <= 0) {
@@ -772,6 +783,7 @@ function Swap() {
         return;
       }
 
+      // اضافه کردن userAddress به پارامترهای درخواست
       const url = `${apiUrl}/swap?` +
         new URLSearchParams({
           srcToken: tokenAddresses[currentNetwork][tokenFrom],
@@ -782,7 +794,8 @@ function Swap() {
           side: "SELL",
           network: networks[currentNetwork].networkId.toString(),
           version: API_VERSION,
-          slippage: "100", // اضافه کردن slippage به درخواست
+          slippage: "100",
+          userAddress: address, // اضافه کردن آدرس کیف‌پول کاربر
         });
 
       console.log("Fetching price and tx data from URL:", url);
