@@ -1,24 +1,17 @@
 export default async function handler(req, res) {
-  const { method, query } = req;
-  if (method !== "GET") {
-    res.setHeader("Allow", ["GET"]);
-    return res.status(405).end(`Method ${method} Not Allowed`);
-  }
-
+  const { query } = req;
   const chainId = query.chainId;
-  const network = Object.values({
-    42161: { apiUrl: "https://arbitrum.api.0x.org" },
-    8453: { apiUrl: "https://base.api.0x.org" },
-    1: { apiUrl: "https://api.0x.org" },
-    56: { apiUrl: "https://bsc.api.0x.org" },
-  }).find(n => n.chainId === parseInt(chainId)) || { apiUrl: "https://api.0x.org" };
-  const url = `${network.apiUrl}/swap/v2/quote?${new URLSearchParams(query).toString()}`;
+  const networkApiUrls = {
+    42161: "https://arbitrum.api.0x.org",
+    56: "https://bsc.api.0x.org",
+    1: "https://api.0x.org",
+  };
+  const apiUrl = networkApiUrls[chainId] || "https://api.0x.org";
+  const url = `${apiUrl}/swap/v2/quote?${new URLSearchParams(query).toString()}`;
+
   try {
     const response = await fetch(url, {
-      headers: {
-        "0x-api-key": process.env.REACT_APP_0X_API_KEY,
-        "0x-version": "v2",
-      },
+      headers: { "0x-api-key": process.env.REACT_APP_0X_API_KEY },
     });
     const data = await response.json();
     res.status(200).json(data);
