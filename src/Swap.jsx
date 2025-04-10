@@ -755,14 +755,14 @@ function Swap() {
         return;
       }
 
-      const url = `${OX_API_URL}/swap/v2/quote?` + new URLSearchParams({
-        chainId: networks[currentNetwork].chainId,
-        sellToken: tokenAddresses[currentNetwork][tokenFrom],
-        buyToken: tokenAddresses[currentNetwork][tokenTo],
-        sellAmount: amountFromInWei.toString(),
-        takerAddress: address,
-        skipValidation: "false",
-      });
+     const url = `/api/0x?` + new URLSearchParams({
+  chainId: networks[currentNetwork].chainId,
+  sellToken: tokenAddresses[currentNetwork][tokenFrom],
+  buyToken: tokenAddresses[currentNetwork][tokenTo],
+  sellAmount: amountFromInWei.toString(),
+  takerAddress: address,
+  skipValidation: "false",
+});
 
       console.log("Fetching price data from URL:", url);
 
