@@ -30,6 +30,7 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
+    apiUrl: "https://arbitrum.api.0x.org",
   },
   base: {
     chainId: 8453,
@@ -38,6 +39,7 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
+    apiUrl: "https://base.api.0x.org",
   },
   ethereum: {
     chainId: 1,
@@ -46,6 +48,7 @@ const networks = {
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
+    apiUrl: "https://api.0x.org",
   },
   bnb: {
     chainId: 56,
@@ -54,6 +57,7 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
+    apiUrl: "https://bsc.api.0x.org",
   },
 };
 
@@ -145,13 +149,17 @@ const ERC20_ABI = [
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
 ];
-const OX_API_URL = "https://api.0x.org";
 const OX_API_KEY = process.env.REACT_APP_0X_API_KEY;
 
 const getSupportedTokens = async (chainId) => {
   try {
-    const response = await fetch(`${OX_API_URL}/swap/v2/sources?chainId=${chainId}`, {
-      headers: { "0x-api-key": OX_API_KEY, "0x-version": "v2" },
+    const network = Object.values(networks).find(n => n.chainId === chainId);
+    const apiUrl = network.apiUrl;
+    const response = await fetch(`${apiUrl}/swap/v2/sources?chainId=${chainId}`, {
+      headers: {
+        "0x-api-key": OX_API_KEY,
+        "0x-version": "v2",
+      },
     });
     if (!response.ok) throw new Error(`Failed to fetch tokens: ${response.status}`);
     const data = await response.json();
@@ -755,19 +763,22 @@ function Swap() {
         return;
       }
 
-     const url = `/api/0x?` + new URLSearchParams({
-  chainId: networks[currentNetwork].chainId,
-  sellToken: tokenAddresses[currentNetwork][tokenFrom],
-  buyToken: tokenAddresses[currentNetwork][tokenTo],
-  sellAmount: amountFromInWei.toString(),
-  takerAddress: address,
-  skipValidation: "false",
-});
+      const url = `/api/0x?` + new URLSearchParams({
+        chainId: networks[currentNetwork].chainId,
+        sellToken: tokenAddresses[currentNetwork][tokenFrom],
+        buyToken: tokenAddresses[currentNetwork][tokenTo],
+        sellAmount: amountFromInWei.toString(),
+        takerAddress: address,
+        skipValidation: "false",
+      });
 
       console.log("Fetching price data from URL:", url);
 
       const response = await fetch(url, {
-        headers: { "0x-api-key": OX_API_KEY, "0x-version": "v2" },
+        headers: {
+          "0x-api-key": OX_API_KEY,
+          "0x-version": "v2",
+        },
         signal: abortController.signal,
       });
 
