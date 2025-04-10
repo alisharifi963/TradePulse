@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 
-// استایل سراسری
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -23,10 +22,9 @@ const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
-// اطلاعات شبکه‌ها
 const networks = {
   arbitrum: {
-    chainId: "0xa4b1",
+    chainId: 42161,
     name: "Arbitrum One",
     rpcUrl: "https://arb1.arbitrum.io/rpc",
     explorerUrl: "https://arbiscan.io",
@@ -34,7 +32,7 @@ const networks = {
     networkId: 42161,
   },
   base: {
-    chainId: "0x2105",
+    chainId: 8453,
     name: "Base",
     rpcUrl: "https://mainnet.base.org",
     explorerUrl: "https://basescan.org",
@@ -42,7 +40,7 @@ const networks = {
     networkId: 8453,
   },
   ethereum: {
-    chainId: "0x1",
+    chainId: 1,
     name: "Ethereum Mainnet",
     rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
     explorerUrl: "https://etherscan.io",
@@ -50,7 +48,7 @@ const networks = {
     networkId: 1,
   },
   bnb: {
-    chainId: "0x38",
+    chainId: 56,
     name: "Binance Smart Chain",
     rpcUrl: "https://bsc-dataseed.binance.org/",
     explorerUrl: "https://bscscan.com",
@@ -59,7 +57,6 @@ const networks = {
   },
 };
 
-// آدرس‌های توکن‌ها
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -100,7 +97,6 @@ const tokenAddresses = {
   },
 };
 
-// اعشار توکن‌ها
 const tokenDecimals = {
   arbitrum: {
     ETH: 18,
@@ -141,10 +137,7 @@ const tokenDecimals = {
   },
 };
 
-// آدرس پراکسی ParaSwap
-const PARASWAP_PROXY = ethers.getAddress("0x216b4b4ba9f3e719726886d34a177484278bfcae");
-
-// ABI توکن ERC20
+const OX_EXCHANGE_PROXY = "0xdef1c0ded9bec7f1a1670819833240f027b25eff";
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -152,25 +145,23 @@ const ERC20_ABI = [
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
 ];
+const OX_API_URL = "https://api.0x.org";
+const OX_API_KEY = process.env.REACT_APP_0X_API_KEY;
 
-// URL پایه ParaSwap
-const API_VERSION = "6.2";
-const apiUrl = "https://api.paraswap.io";
-
-// تابع برای گرفتن لیست توکن‌های پشتیبانی‌شده
-const getSupportedTokens = async (networkId) => {
+const getSupportedTokens = async (chainId) => {
   try {
-    const response = await fetch(`${apiUrl}/tokens/${networkId}`);
+    const response = await fetch(`${OX_API_URL}/swap/v2/sources?chainId=${chainId}`, {
+      headers: { "0x-api-key": OX_API_KEY, "0x-version": "v2" },
+    });
     if (!response.ok) throw new Error(`Failed to fetch tokens: ${response.status}`);
     const data = await response.json();
-    return data.tokens;
+    return Object.keys(data.sources);
   } catch (error) {
     console.error("Error fetching supported tokens:", error);
     return [];
   }
 };
 
-// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -586,23 +577,10 @@ const SwapAnimation = ({ isSwapping, hasError }) => {
   };
 
   return isSwapping ? (
-    <AnimationOverlay
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <AnimationOverlay initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
       <motion.div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <motion.div
-          style={{
-            width: "80px",
-            height: "80px",
-            background: "linear-gradient(to right, #10b981, #3b82f6)",
-            borderRadius: "50%",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          style={{ width: "80px", height: "80px", background: "linear-gradient(to right, #10b981, #3b82f6)", borderRadius: "50%", display: "flex", justifyContent: "center", alignItems: "center" }}
           variants={heartVariants}
           initial="initial"
           animate="animate"
@@ -639,10 +617,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
           <span>{message}</span>
         </div>
-        <button
-          onClick={onClose}
-          style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}
-        >
+        <button onClick={onClose} style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}>
           OK
         </button>
       </motion.div>
@@ -650,20 +625,19 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   );
 };
 
-// تابع تغییر شبکه
 const switchNetwork = async (networkKey, provider) => {
   const network = networks[networkKey];
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: network.chainId }],
+      params: [{ chainId: `0x${network.chainId.toString(16)}` }],
     });
   } catch (error) {
     if (error.code === 4902) {
       await provider.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: network.chainId,
+          chainId: `0x${network.chainId.toString(16)}`,
           chainName: network.name,
           rpcUrls: [network.rpcUrl],
           nativeCurrency: network.nativeCurrency,
@@ -708,12 +682,11 @@ function Swap() {
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const [supportedTokens, setSupportedTokens] = useState([]);
 
-  // گرفتن لیست توکن‌های پشتیبانی‌شده
   useEffect(() => {
     const loadSupportedTokens = async () => {
-      const tokens = await getSupportedTokens(networks[currentNetwork].networkId);
-      setSupportedTokens(tokens);
-      console.log("Supported tokens:", tokens);
+      const sources = await getSupportedTokens(networks[currentNetwork].chainId);
+      setSupportedTokens(sources);
+      console.log("Supported sources:", sources);
     };
     loadSupportedTokens();
   }, [currentNetwork]);
@@ -782,58 +755,38 @@ function Swap() {
         return;
       }
 
-      const url = `${apiUrl}/v${API_VERSION}/prices?` + new URLSearchParams({
-        srcToken: tokenAddresses[currentNetwork][tokenFrom],
-        destToken: tokenAddresses[currentNetwork][tokenTo],
-        amount: amountFromInWei.toString(),
-        side: "SELL",
-        network: networks[currentNetwork].networkId.toString(),
-        userAddress: address,
+      const url = `${OX_API_URL}/swap/v2/quote?` + new URLSearchParams({
+        chainId: networks[currentNetwork].chainId,
+        sellToken: tokenAddresses[currentNetwork][tokenFrom],
+        buyToken: tokenAddresses[currentNetwork][tokenTo],
+        sellAmount: amountFromInWei.toString(),
+        takerAddress: address,
+        skipValidation: "false",
       });
 
       console.log("Fetching price data from URL:", url);
 
-      const response = await fetch(url, { signal: abortController.signal });
+      const response = await fetch(url, {
+        headers: { "0x-api-key": OX_API_KEY, "0x-version": "v2" },
+        signal: abortController.signal,
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
-        const parsedError = JSON.parse(errorText);
-        if (parsedError.error === "ESTIMATED_LOSS_GREATER_THAN_MAX_IMPACT") {
-          setAmountTo("0.000000");
-          setBestDex("Price Impact Too High");
-          setPriceRoute(null);
-          setUsdEquivalent("");
-          setSwapNotification({ message: "Price impact too high! Reduce the amount.", isSuccess: false });
-          setTimeout(() => setSwapNotification(null), 3000);
-          return;
-        }
         throw new Error(`API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      if (data.priceRoute) {
-        setPriceRoute(data.priceRoute);
-        const rawDestAmount = data.priceRoute.destAmount;
-        const formattedAmountTo = ethers.formatUnits(rawDestAmount, tokenDecimals[currentNetwork][tokenTo]);
-        setAmountTo(formattedAmountTo);
-        setBestDex(data.priceRoute.bestRoute[0]?.swaps[0]?.swapExchanges[0]?.exchange || "ParaSwap");
-        setIsPriceRouteReady(true);
+      setPriceRoute(data);
+      const formattedAmountTo = ethers.formatUnits(data.buyAmount, tokenDecimals[currentNetwork][tokenTo]);
+      setAmountTo(formattedAmountTo);
+      setBestDex(data.sources[0]?.name || "0x Aggregator");
+      setIsPriceRouteReady(true);
 
-        let usdValue;
-        if (tokenFrom === "USDC" || tokenFrom === "USDT" || tokenFrom === "BUSD") {
-          usdValue = Number(amountFrom).toFixed(2);
-        } else {
-          const srcUSD = data.priceRoute.srcUSD || 1;
-          const srcAmount = Number(ethers.formatUnits(amountFromInWei, tokenDecimals[currentNetwork][tokenFrom]));
-          usdValue = (srcAmount * srcUSD).toFixed(2);
-        }
-        setUsdEquivalent(`≈ $${usdValue} USD`);
-      } else {
-        setAmountTo("0.000000");
-        setBestDex("No route found");
-        setPriceRoute(null);
-        setUsdEquivalent("N/A");
-      }
+      const usdValue = data.estimatedPriceImpact
+        ? (Number(amountFrom) * (1 - data.estimatedPriceImpact / 10000)).toFixed(2)
+        : Number(amountFrom).toFixed(2);
+      setUsdEquivalent(`≈ $${usdValue} USD`);
     } catch (error) {
       if (error.name === "AbortError") return;
       console.error("Error fetching rate:", error);
@@ -849,12 +802,10 @@ function Swap() {
   const estimateGas = async () => {
     if (signer && priceRoute) {
       try {
-        const txParams = await buildTransaction();
         const gas = await signer.estimateGas({
-          to: txParams.to,
-          data: txParams.data,
-          value: txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n,
-          gasLimit: txParams.gas ? ethers.getBigInt(txParams.gas) : 3000000n,
+          to: priceRoute.to,
+          data: priceRoute.data,
+          value: priceRoute.value ? ethers.getBigInt(priceRoute.value) : 0n,
         });
 
         const gasInWei = ethers.toBigInt(gas.toString());
@@ -893,18 +844,18 @@ function Swap() {
       const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]);
 
       const network = await provider.getNetwork();
-      if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
+      if (Number(network.chainId) !== networks[currentNetwork].chainId) {
         await switchNetwork(currentNetwork, window.ethereum);
       }
 
-      let allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
+      let allowance = await tokenContract.allowance(address, OX_EXCHANGE_PROXY);
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
       if (allowanceBN < amountBN) {
-        const tx = await tokenContract.approve(PARASWAP_PROXY, amountBN);
+        const tx = await tokenContract.approve(OX_EXCHANGE_PROXY, amountBN);
         await tx.wait();
         await delay(10000);
-        allowance = await tokenContract.allowance(address, PARASWAP_PROXY);
+        allowance = await tokenContract.allowance(address, OX_EXCHANGE_PROXY);
         allowanceBN = ethers.toBigInt(allowance.toString());
         if (allowanceBN < amountBN) throw new Error("Allowance insufficient after approval!");
       }
@@ -916,42 +867,6 @@ function Swap() {
       setTimeout(() => setIsNotificationVisible(false), 3000);
       throw error;
     }
-  };
-
-  const buildTransaction = async () => {
-    if (!priceRoute || !isConnected) throw new Error("Cannot build transaction: missing priceRoute or wallet connection");
-
-    const srcToken = tokenAddresses[currentNetwork][tokenFrom];
-    const destToken = tokenAddresses[currentNetwork][tokenTo];
-    const srcAmount = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]).toString();
-    const txData = {
-      srcToken,
-      destToken,
-      srcAmount,
-      destAmount: priceRoute.destAmount.toString(),
-      priceRoute,
-      userAddress: address,
-      receiver: address,
-      slippage: 100,
-      isCapSurplus: false,
-      isSurplusToUser: false,
-      isDirectFeeTransfer: false,
-    };
-
-    const url = `${apiUrl}/v${API_VERSION}/transactions/${networks[currentNetwork].networkId}`;
-    console.log("Building transaction with URL:", url);
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(txData),
-      signal: abortController.signal,
-    });
-
-    const responseData = await response.json();
-    if (!response.ok) throw new Error(`Transaction build failed: ${responseData.error || "Unknown error"}`);
-    if (!responseData.to || !responseData.data) throw new Error("Invalid transaction data from API");
-    return responseData;
   };
 
   const handleSwap = async () => {
@@ -979,7 +894,7 @@ function Swap() {
     setIsSwapping(true);
     try {
       const network = await provider.getNetwork();
-      if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
+      if (Number(network.chainId) !== networks[currentNetwork].chainId) {
         await switchNetwork(currentNetwork, window.ethereum);
       }
 
@@ -987,11 +902,13 @@ function Swap() {
       await fetchBestRate();
       if (!isPriceRouteReady) throw new Error("Failed to refresh price route.");
 
-      const txParams = await buildTransaction();
-      const txValue = txParams.value ? ethers.getBigInt(txParams.value.toString()) : 0n;
-      const gasLimit = txParams.gas ? ethers.getBigInt(txParams.gas) : 500000n;
-
-      const tx = await signer.sendTransaction({ to: txParams.to, data: txParams.data, value: txValue, gasLimit });
+      const txValue = priceRoute.value ? ethers.getBigInt(priceRoute.value) : 0n;
+      const tx = await signer.sendTransaction({
+        to: priceRoute.to,
+        data: priceRoute.data,
+        value: txValue,
+        gasLimit: priceRoute.gas || 500000n,
+      });
       await tx.wait();
 
       setSwapNotification({ message: `Swap successful! Tx Hash: ${tx.hash}`, isSuccess: true });
@@ -1023,7 +940,7 @@ function Swap() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const network = await provider.getNetwork();
-        const networkKey = Object.keys(networks).find(key => ethers.toBigInt(networks[key].chainId) === network.chainId) || "arbitrum";
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId)) || "arbitrum";
         if (!networkKey) await switchNetwork("arbitrum", window.ethereum);
         const signer = await provider.getSigner();
         const userAddress = await signer.getAddress();
@@ -1033,9 +950,7 @@ function Swap() {
         setIsConnected(true);
         await fetch('/api/save-wallet', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ address: userAddress }),
         });
         setCurrentNetwork(networkKey);
@@ -1072,7 +987,7 @@ function Swap() {
     if (ethers.isAddress(customTokenAddress)) {
       try {
         const network = await provider.getNetwork();
-        if (network.chainId !== ethers.toBigInt(networks[currentNetwork].chainId)) {
+        if (Number(network.chainId) !== networks[currentNetwork].chainId) {
           setErrorMessage(`Connected to wrong network. Switch to ${networks[currentNetwork].name}.`);
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
@@ -1181,13 +1096,7 @@ function Swap() {
               <Subtitle>Swap Tokens Seamlessly</Subtitle>
               <div>
                 <InputContainer>
-                  <Input
-                    type="number"
-                    placeholder="Amount to sell"
-                    value={amountFrom}
-                    onChange={(e) => setAmountFrom(e.target.value || "")}
-                    min="0.001"
-                  />
+                  <Input type="number" placeholder="Amount to sell" value={amountFrom} onChange={(e) => setAmountFrom(e.target.value || "")} min="0.001" />
                   <TokenButtonContainer>
                     {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
                     <TokenButton onClick={() => openModal(true)}>
@@ -1211,12 +1120,7 @@ function Swap() {
                 </SwapTokensContainer>
 
                 <InputContainer>
-                  <Input
-                    type="number"
-                    placeholder="Amount to buy"
-                    value={amountTo}
-                    readOnly
-                  />
+                  <Input type="number" placeholder="Amount to buy" value={amountTo} readOnly />
                   <TokenButtonContainer>
                     <TokenButton onClick={() => openModal(false)}>
                       <span>{displayToken(tokenTo)}</span>
@@ -1234,12 +1138,7 @@ function Swap() {
 
                 {isConnected && (
                   <InputContainer>
-                    <Input
-                      type="text"
-                      value={customTokenAddress}
-                      onChange={(e) => setCustomTokenAddress(e.target.value)}
-                      placeholder="Search token by contract address"
-                    />
+                    <Input type="text" value={customTokenAddress} onChange={(e) => setCustomTokenAddress(e.target.value)} placeholder="Search token by contract address" />
                     <button onClick={searchToken}>Search</button>
                   </InputContainer>
                 )}
@@ -1247,12 +1146,7 @@ function Swap() {
                 <RateInfo>Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span></RateInfo>
                 <RateInfo>Estimated Gas: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}</RateInfo>
 
-                <SwapButton
-                  onClick={handleSwap}
-                  disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
+                <SwapButton onClick={handleSwap} disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   {isSwapping ? "Swapping..." : `Swap ${displayToken(tokenFrom)} to ${displayToken(tokenTo)}`}
                 </SwapButton>
               </div>
@@ -1291,7 +1185,6 @@ function Swap() {
         )}
 
         <SwapAnimation isSwapping={isSwapping} hasError={!!errorMessage} />
-
         {swapNotification && <SwapNotification message={swapNotification.message} isSuccess={swapNotification.isSuccess} onClose={() => setSwapNotification(null)} />}
 
         <Footer>
