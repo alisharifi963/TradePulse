@@ -64,7 +64,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", // آدرس اصلاح‌شده
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -168,7 +168,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌ها (بدون تغییر نسبت به کد اصلی)
+// استایل‌ها (بدون تغییر)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -659,7 +659,6 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// تابع برای گرفتن قیمت توکن از CoinGecko
 const fetchTokenPrice = async (tokenSymbol) => {
   try {
     const coingeckoId = tokenCoinGeckoIds[tokenSymbol];
@@ -720,15 +719,19 @@ function Swap() {
     fetchPrices();
   }, [tokenFrom, tokenTo, currentNetwork]);
 
-  // محاسبه معادل USD
+  // محاسبه معادل USD با در نظر گرفتن اعشار
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
-      const usdValue = (Number(amountFrom) * tokenPrices[tokenFrom]).toFixed(2);
-      setUsdEquivalent(`≈ $${usdValue} USD`);
+      const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
+      const amountFromBN = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom);
+      const tokenPrice = tokenPrices[tokenFrom];
+      const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6); // دقت 6 اعشار برای قیمت
+      const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
+      setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
     } else {
       setUsdEquivalent("");
     }
-  }, [amountFrom, tokenPrices, tokenFrom]);
+  }, [amountFrom, tokenPrices, tokenFrom, currentNetwork]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider || !tokenSymbol) return "0";
@@ -748,7 +751,7 @@ function Swap() {
       }
 
       const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
-      return ethers.formatUnits(balance, decimals);
+      return ethers.utils.formatUnits(balance, decimals);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol}:`, error);
       return "0";
@@ -793,7 +796,7 @@ function Swap() {
 
       setIsPriceRouteReady(false);
       const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromFormatted = ethers.parseUnits(amountFrom || "0", decimalsFrom).toString();
+      const amountFromFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -823,27 +826,24 @@ function Swap() {
 
       setPriceRoute(data.data);
       const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
-      const formattedAmountTo = ethers.formatUnits(data.data.outAmount, decimalsTo);
+      const formattedAmountTo = ethers.utils.formatUnits(data.data.outAmount, decimalsTo);
       setAmountTo(formattedAmountTo);
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
 
       // محاسبه معادل USD برای توکن خروجی
-      if (tokenTo === "USDC") {
-        const usdValue = Number(formattedAmountTo).toFixed(2);
-        setUsdEquivalent(`≈ $${usdValue} USD`);
+      const tokenPrice = await fetchTokenPrice(tokenTo);
+      if (tokenPrice > 0) {
+        const amountToBN = ethers.utils.parseUnits(formattedAmountTo, decimalsTo);
+        const usdValueBN = amountToBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
+        const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsTo);
+        setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
       } else {
-        const tokenPrice = await fetchTokenPrice(tokenTo);
-        if (tokenPrice > 0) {
-          const usdValue = (Number(formattedAmountTo) * tokenPrice).toFixed(2);
-          setUsdEquivalent(`≈ $${usdValue} USD`);
-        } else {
-          setUsdEquivalent("N/A");
-        }
+        setUsdEquivalent("N/A");
       }
 
       setGasEstimate({
-        gwei: ethers.formatUnits(data.data.estimatedGas || "0", "gwei"),
+        gwei: ethers.utils.formatUnits(data.data.estimatedGas || "0", "gwei"),
         usd: "N/A",
       });
     } catch (error) {
@@ -871,7 +871,7 @@ function Swap() {
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
       const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountBN = ethers.parseUnits(amountFrom, decimals);
+      const amountBN = ethers.utils.parseUnits(amountFrom, decimals);
 
       const network = await provider.getNetwork();
       if (Number(network.chainId) !== networks[currentNetwork].chainId) {
@@ -879,14 +879,14 @@ function Swap() {
       }
 
       let allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
-      let allowanceBN = ethers.toBigInt(allowance.toString());
+      let allowanceBN = ethers.utils.toBigInt(allowance.toString());
 
       if (allowanceBN < amountBN) {
         const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountBN);
         await tx.wait();
         await delay(10000);
         allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
-        allowanceBN = ethers.toBigInt(allowance.toString());
+        allowanceBN = ethers.utils.toBigInt(allowance.toString());
         if (allowanceBN < amountBN) throw new Error("Allowance insufficient after approval!");
       }
       return true;
@@ -931,7 +931,7 @@ function Swap() {
       await checkAndApproveToken();
 
       const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromFormatted = ethers.parseUnits(amountFrom, decimals).toString();
+      const amountFromFormatted = ethers.utils.parseUnits(amountFrom, decimals).toString();
       const params = new URLSearchParams({
         inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
         outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
@@ -954,8 +954,8 @@ function Swap() {
       const tx = await signer.sendTransaction({
         to: data.data.to,
         data: data.data.data,
-        value: data.data.value ? ethers.getBigInt(data.data.value) : 0n,
-        gasLimit: data.data.estimatedGas || 500000n,
+        value: data.data.value ? ethers.utils.parseUnits(data.data.value, "wei") : 0,
+        gasLimit: data.data.estimatedGas || 500000,
       });
       await tx.wait();
 
@@ -964,7 +964,7 @@ function Swap() {
     } catch (error) {
       console.error("Swap error:", error);
       let userMessage = "Swap failed. Please try again.";
-      if (error.message.includes("user rejected")) {
+      if (error.code === 4001) {
         userMessage = "Transaction rejected by user.";
       } else if (error.message.includes("insufficient funds")) {
         userMessage = "Insufficient funds for transaction.";
@@ -1041,7 +1041,7 @@ function Swap() {
       return;
     }
 
-    if (ethers.isAddress(customTokenAddress)) {
+    if (ethers.utils.isAddress(customTokenAddress)) {
       try {
         const network = await provider.getNetwork();
         if (Number(network.chainId) !== networks[currentNetwork].chainId) {
