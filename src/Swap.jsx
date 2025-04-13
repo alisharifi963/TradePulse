@@ -64,7 +64,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -141,6 +141,25 @@ const tokenDecimals = {
   },
 };
 
+// اضافه کردن mapping برای CoinGecko IDs
+const tokenCoinGeckoIds = {
+  ETH: "ethereum",
+  USDC: "usd-coin",
+  DAI: "dai",
+  WBTC: "wrapped-bitcoin",
+  ARB: "arbitrum",
+  UNI: "uniswap",
+  LINK: "chainlink",
+  WETH: "weth",
+  GMX: "gmx",
+  USDT: "tether",
+  BNB: "binancecoin",
+  BUSD: "binance-usd",
+  CAKE: "pancakeswap-token",
+  WBNB: "wbnb",
+  BTCB: "bitcoin-bep2",
+};
+
 const OPEN_OCEAN_EXCHANGE = "0x6352a56caadC4F1E25CD6c75970Fa2964A9444a4";
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
@@ -150,6 +169,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+// استایل‌ها بدون تغییر
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -289,7 +309,7 @@ const TrustSticker = styled.div`
     0% 0%, 5% 2%, 10% 0%, 15% 3%, 20% 1%, 25% 4%, 30% 2%, 35% 0%, 40% 3%, 45% 1%,
     50% 4%, 55% 2%, 60% 0%, 65% 3%, 70% 1%, 75% 4%, 80% 2%, 85% 0%, 90% 3%, 95% 1%,
     100% 0%, 100% 100%, 95% 98%, 90% 100%, 85% 97%, 80% 99%, 75% 96%, 70% 98%,
-    65% 100%, 60% 97%, 55% W3C, 50% 96%, 45% 98%, 40% 100%, 35% 97%, 30% 99%,
+    65% 100%, 60% 97%, 55% 99%, 50% 96%, 45% 98%, 40% 100%, 35% 97%, 30% 99%,
     25% 96%, 20% 98%, 15% 100%, 10% 97%, 5% 99%, 0% 100%
   );
 `;
@@ -640,12 +660,30 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// تابع برای گرفتن قیمت توکن از CoinGecko
+const fetchTokenPrice = async (tokenSymbol) => {
+  try {
+    const coingeckoId = tokenCoinGeckoIds[tokenSymbol];
+    if (!coingeckoId) return 0;
+
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`
+    );
+    if (!response.ok) throw new Error("Failed to fetch price from CoinGecko");
+    const data = await response.json();
+    return data[coingeckoId]?.usd || 0;
+  } catch (error) {
+    console.error(`Error fetching price for ${tokenSymbol}:`, error);
+    return 0;
+  }
+};
+
 function Swap() {
   const abortController = new AbortController();
 
-  const [tokenFrom, setTokenFrom] = useState("USDC");
-  const [tokenTo, setTokenTo] = useState("ETH");
-  const [amountFrom, setAmountFrom] = useState("5");
+  const [tokenFrom, setTokenFrom] = useState("ETH");
+  const [tokenTo, setTokenTo] = useState("USDC");
+  const [amountFrom, setAmountFrom] = useState("0.001");
   const [amountTo, setAmountTo] = useState("");
   const [bestDex, setBestDex] = useState("Fetching...");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -666,13 +704,42 @@ function Swap() {
   const [tokenToBalance, setTokenToBalance] = useState("0");
   const [gasEstimate, setGasEstimate] = useState(null);
   const [swapNotification, setSwapNotification] = useState(null);
-  const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
+  const [currentNetwork, setCurrentNetwork] = useState("base");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
+  const [tokenPrices, setTokenPrices] = useState({});
+
+  // گرفتن قیمت توکن‌ها هنگام تغییر شبکه یا توکن
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const fromPrice = await fetchTokenPrice(tokenFrom);
+      const toPrice = await fetchTokenPrice(tokenTo);
+      setTokenPrices({
+        [tokenFrom]: fromPrice,
+        [tokenTo]: toPrice,
+      });
+    };
+    fetchPrices();
+  }, [tokenFrom, tokenTo, currentNetwork]);
+
+  // محاسبه معادل USD هنگام تغییر مقدار
+  useEffect(() => {
+    if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
+      const usdValue = (Number(amountFrom) * tokenPrices[tokenFrom]).toFixed(2);
+      setUsdEquivalent(`≈ $${usdValue} USD`);
+    } else {
+      setUsdEquivalent("");
+    }
+  }, [amountFrom, tokenPrices, tokenFrom]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-    if (!userAddress || !provider) return "0";
+    if (!userAddress || !provider || !tokenSymbol) return "0";
     try {
       const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
+      if (!tokenAddress) {
+        console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
+        return "0";
+      }
+
       let balance;
       if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
         balance = await provider.getBalance(userAddress);
@@ -680,7 +747,9 @@ function Swap() {
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
         balance = await tokenContract.balanceOf(userAddress);
       }
-      return ethers.formatUnits(balance, tokenDecimals[currentNetwork][tokenSymbol]);
+
+      const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
+      return ethers.formatUnits(balance, decimals);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol}:`, error);
       return "0";
@@ -724,7 +793,7 @@ function Swap() {
       }
 
       setIsPriceRouteReady(false);
-      const amountFromFormatted = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom]).toString();
+      const amountFromFormatted = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom] || 18).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -755,13 +824,16 @@ function Swap() {
       if (data.code !== 200) throw new Error(data.message || "Failed to fetch quote");
 
       setPriceRoute(data.data);
-      const formattedAmountTo = ethers.formatUnits(data.data.outAmount, tokenDecimals[currentNetwork][tokenTo]);
+      const formattedAmountTo = ethers.formatUnits(data.data.outAmount, tokenDecimals[currentNetwork][tokenTo] || 18);
       setAmountTo(formattedAmountTo);
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
 
-      const usdValue = Number(amountFrom).toFixed(2);
-      setUsdEquivalent(`≈ $${usdValue} USD`);
+      // محاسبه معادل USD برای توکن خروجی
+      if (tokenPrices[tokenTo]) {
+        const usdValueTo = (Number(formattedAmountTo) * tokenPrices[tokenTo]).toFixed(2);
+        setUsdEquivalent(`≈ $${usdValueTo} USD`);
+      }
 
       setGasEstimate({
         gwei: ethers.formatUnits(data.data.estimatedGas, "gwei"),
@@ -781,6 +853,10 @@ function Swap() {
 
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+    if (!srcTokenAddress) {
+      throw new Error(`Token address for ${tokenFrom} not found in network ${currentNetwork}`);
+    }
+
     if (srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
       console.log("No approval needed for native token.");
       return true;
@@ -788,7 +864,7 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]);
+      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
 
       const network = await provider.getNetwork();
       if (Number(network.chainId) !== networks[currentNetwork].chainId) {
@@ -847,7 +923,7 @@ function Swap() {
 
       await checkAndApproveToken();
 
-      const amountFromFormatted = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]).toString();
+      const amountFromFormatted = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18).toString();
       const params = new URLSearchParams({
         inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
         outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
@@ -904,8 +980,8 @@ function Swap() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const network = await provider.getNetwork();
-        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId)) || "arbitrum";
-        if (!networkKey) await switchNetwork("arbitrum", window.ethereum);
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId)) || "base";
+        if (!networkKey) await switchNetwork("base", window.ethereum);
         const signer = await provider.getSigner();
         const userAddress = await signer.getAddress();
         setProvider(provider);
@@ -996,11 +1072,16 @@ function Swap() {
       await switchNetwork(networkKey, window.ethereum);
       setCurrentNetwork(networkKey);
       setIsNetworkDropdownOpen(false);
-      setTokenFrom("USDC");
-      setTokenTo("ETH");
-      setAmountFrom("5");
+      setTokenFrom("ETH");
+      setTokenTo("USDC");
+      setAmountFrom("0.001");
       setAmountTo("");
       setBestDex("Fetching...");
+      // به‌روزرسانی بالانس‌ها بعد از سوئیچ شبکه
+      const fromBalance = await fetchTokenBalance("ETH", address);
+      const toBalance = await fetchTokenBalance("USDC", address);
+      setTokenFromBalance(fromBalance);
+      setTokenToBalance(toBalance);
     } catch (error) {
       console.error("Network switch failed:", error);
       setErrorMessage(`Failed to switch network: ${error.message}`);
