@@ -141,24 +141,6 @@ const tokenDecimals = {
   },
 };
 
-const tokenCoinGeckoIds = {
-  ETH: "ethereum",
-  USDC: "usd-coin",
-  DAI: "dai",
-  WBTC: "wrapped-bitcoin",
-  ARB: "arbitrum",
-  UNI: "uniswap",
-  LINK: "chainlink",
-  WETH: "weth",
-  GMX: "gmx",
-  USDT: "tether",
-  BNB: "binancecoin",
-  BUSD: "binance-usd",
-  CAKE: "pancakeswap-token",
-  WBNB: "wbnb",
-  BTCB: "bitcoin-bep2",
-};
-
 const OPEN_OCEAN_EXCHANGE = "0x6352a56caadC4F1E25CD6c75970Fa2964A9444a4";
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
@@ -658,23 +640,6 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fetchTokenPrice = async (tokenSymbol) => {
-  try {
-    const coingeckoId = tokenCoinGeckoIds[tokenSymbol];
-    if (!coingeckoId) return 0;
-
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`
-    );
-    if (!response.ok) throw new Error("Failed to fetch price from CoinGecko");
-    const data = await response.json();
-    return data[coingeckoId]?.usd || 0;
-  } catch (error) {
-    console.error(`Error fetching price for ${tokenSymbol}:`, error);
-    return 0;
-  }
-};
-
 function Swap() {
   const abortController = new AbortController();
 
@@ -703,28 +668,6 @@ function Swap() {
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("base");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
-  const [tokenPrices, setTokenPrices] = useState({});
-
-  useEffect(() => {
-    const fetchPrices = async () => {
-      const fromPrice = await fetchTokenPrice(tokenFrom);
-      const toPrice = await fetchTokenPrice(tokenTo);
-      setTokenPrices({
-        [tokenFrom]: fromPrice,
-        [tokenTo]: toPrice,
-      });
-    };
-    fetchPrices();
-  }, [tokenFrom, tokenTo, currentNetwork]);
-
-  useEffect(() => {
-    if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
-      const usdValue = (Number(amountFrom) * tokenPrices[tokenFrom]).toFixed(2);
-      setUsdEquivalent(`≈ $${usdValue} USD`);
-    } else {
-      setUsdEquivalent("");
-    }
-  }, [amountFrom, tokenPrices, tokenFrom]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider || !tokenSymbol) return "0";
@@ -825,6 +768,37 @@ function Swap() {
       setAmountTo(formattedAmountTo);
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
+
+      // محاسبه معادل USD بر اساس مقدار خروجی (outAmount)
+      // اگه توکن خروجی USDC باشه، مقدار outAmount مستقیماً معادل USD هست
+      if (tokenTo === "USDC") {
+        const usdValue = Number(formattedAmountTo).toFixed(2);
+        setUsdEquivalent(`≈ $${usdValue} USD`);
+      } else {
+        // اگه توکن خروجی USDC نیست، باید یه درخواست اضافی برای تبدیل به USDC بزنیم
+        const usdcParams = new URLSearchParams({
+          inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
+          outTokenAddress: tokenAddresses[currentNetwork]["USDC"],
+          amount: amountFromFormatted,
+          gasPrice: "5",
+          slippage: "1",
+          account: address,
+        });
+
+        const usdcUrl = `${networks[currentNetwork].apiUrl}/quote?${usdcParams.toString()}`;
+        const usdcResponse = await fetch(usdcUrl, { signal: abortController.signal });
+        if (!usdcResponse.ok) {
+          const errorText = await usdcResponse.text();
+          throw new Error(`API error ${usdcResponse.status}: ${errorText}`);
+        }
+
+        const usdcData = await usdcResponse.json();
+        if (usdcData.code !== 200) throw new Error(usdcData.message || "Failed to fetch USDC quote");
+
+        const usdcAmount = ethers.formatUnits(usdcData.data.outAmount, 6); // USDC معمولاً 6 اعشار داره
+        const usdValue = Number(usdcAmount).toFixed(2);
+        setUsdEquivalent(`≈ $${usdValue} USD`);
+      }
 
       setGasEstimate({
         gwei: ethers.formatUnits(data.data.estimatedGas || "0", "gwei"),
