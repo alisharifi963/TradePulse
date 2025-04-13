@@ -64,7 +64,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC",
+    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", // آدرس اصلاح‌شده
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -141,6 +141,24 @@ const tokenDecimals = {
   },
 };
 
+const tokenCoinGeckoIds = {
+  ETH: "ethereum",
+  USDC: "usd-coin",
+  DAI: "dai",
+  WBTC: "wrapped-bitcoin",
+  ARB: "arbitrum",
+  UNI: "uniswap",
+  LINK: "chainlink",
+  WETH: "weth",
+  GMX: "gmx",
+  USDT: "tether",
+  BNB: "binancecoin",
+  BUSD: "binance-usd",
+  CAKE: "pancakeswap-token",
+  WBNB: "wbnb",
+  BTCB: "bitcoin-bep2",
+};
+
 const OPEN_OCEAN_EXCHANGE = "0x6352a56caadC4F1E25CD6c75970Fa2964A9444a4";
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
@@ -150,6 +168,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+// استایل‌ها (بدون تغییر نسبت به کد اصلی)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -640,6 +659,24 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// تابع برای گرفتن قیمت توکن از CoinGecko
+const fetchTokenPrice = async (tokenSymbol) => {
+  try {
+    const coingeckoId = tokenCoinGeckoIds[tokenSymbol];
+    if (!coingeckoId) return 0;
+
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=usd`
+    );
+    if (!response.ok) throw new Error("Failed to fetch price from CoinGecko");
+    const data = await response.json();
+    return data[coingeckoId]?.usd || 0;
+  } catch (error) {
+    console.error(`Error fetching price for ${tokenSymbol}:`, error);
+    return 0;
+  }
+};
+
 function Swap() {
   const abortController = new AbortController();
 
@@ -668,6 +705,30 @@ function Swap() {
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("base");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
+  const [tokenPrices, setTokenPrices] = useState({});
+
+  // گرفتن قیمت توکن‌ها
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const fromPrice = await fetchTokenPrice(tokenFrom);
+      const toPrice = await fetchTokenPrice(tokenTo);
+      setTokenPrices({
+        [tokenFrom]: fromPrice,
+        [tokenTo]: toPrice,
+      });
+    };
+    fetchPrices();
+  }, [tokenFrom, tokenTo, currentNetwork]);
+
+  // محاسبه معادل USD
+  useEffect(() => {
+    if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
+      const usdValue = (Number(amountFrom) * tokenPrices[tokenFrom]).toFixed(2);
+      setUsdEquivalent(`≈ $${usdValue} USD`);
+    } else {
+      setUsdEquivalent("");
+    }
+  }, [amountFrom, tokenPrices, tokenFrom]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider || !tokenSymbol) return "0";
@@ -751,8 +812,6 @@ function Swap() {
       });
 
       const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
-      console.log("Fetching price data from URL:", url);
-
       const response = await fetch(url, { signal: abortController.signal });
       if (!response.ok) {
         const errorText = await response.text();
@@ -769,35 +828,18 @@ function Swap() {
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
 
-      // محاسبه معادل USD بر اساس مقدار خروجی (outAmount)
-      // اگه توکن خروجی USDC باشه، مقدار outAmount مستقیماً معادل USD هست
+      // محاسبه معادل USD برای توکن خروجی
       if (tokenTo === "USDC") {
         const usdValue = Number(formattedAmountTo).toFixed(2);
         setUsdEquivalent(`≈ $${usdValue} USD`);
       } else {
-        // اگه توکن خروجی USDC نیست، باید یه درخواست اضافی برای تبدیل به USDC بزنیم
-        const usdcParams = new URLSearchParams({
-          inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
-          outTokenAddress: tokenAddresses[currentNetwork]["USDC"],
-          amount: amountFromFormatted,
-          gasPrice: "5",
-          slippage: "1",
-          account: address,
-        });
-
-        const usdcUrl = `${networks[currentNetwork].apiUrl}/quote?${usdcParams.toString()}`;
-        const usdcResponse = await fetch(usdcUrl, { signal: abortController.signal });
-        if (!usdcResponse.ok) {
-          const errorText = await usdcResponse.text();
-          throw new Error(`API error ${usdcResponse.status}: ${errorText}`);
+        const tokenPrice = await fetchTokenPrice(tokenTo);
+        if (tokenPrice > 0) {
+          const usdValue = (Number(formattedAmountTo) * tokenPrice).toFixed(2);
+          setUsdEquivalent(`≈ $${usdValue} USD`);
+        } else {
+          setUsdEquivalent("N/A");
         }
-
-        const usdcData = await usdcResponse.json();
-        if (usdcData.code !== 200) throw new Error(usdcData.message || "Failed to fetch USDC quote");
-
-        const usdcAmount = ethers.formatUnits(usdcData.data.outAmount, 6); // USDC معمولاً 6 اعشار داره
-        const usdValue = Number(usdcAmount).toFixed(2);
-        setUsdEquivalent(`≈ $${usdValue} USD`);
       }
 
       setGasEstimate({
@@ -823,7 +865,6 @@ function Swap() {
     }
 
     if (srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-      console.log("No approval needed for native token.");
       return true;
     }
 
@@ -1116,13 +1157,7 @@ function Swap() {
               <Subtitle>Swap Tokens Seamlessly</Subtitle>
               <div>
                 <InputContainer>
-                  <Input
-                    type="number"
-                    placeholder="Amount to sell"
-                    value={amountFrom}
-                    onChange={(e) => setAmountFrom(e.target.value || "")}
-                    min="0.001"
-                  />
+                  <Input type="number" placeholder="Amount to sell" value={amountFrom} onChange={(e) => setAmountFrom(e.target.value || "")} min="0.001" />
                   <TokenButtonContainer>
                     {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
                     <TokenButton onClick={() => openModal(true)}>
@@ -1163,29 +1198,15 @@ function Swap() {
 
                 {isConnected && (
                   <InputContainer>
-                    <Input
-                      type="text"
-                      value={customTokenAddress}
-                      onChange={(e) => setCustomTokenAddress(e.target.value)}
-                      placeholder="Search token by contract address"
-                    />
+                    <Input type="text" value={customTokenAddress} onChange={(e) => setCustomTokenAddress(e.target.value)} placeholder="Search token by contract address" />
                     <button onClick={searchToken}>Search</button>
                   </InputContainer>
                 )}
 
-                <RateInfo>
-                  Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span>
-                </RateInfo>
-                <RateInfo>
-                  Estimated Gas: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}
-                </RateInfo>
+                <RateInfo>Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span></RateInfo>
+                <RateInfo>Estimated Gas: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}</RateInfo>
 
-                <SwapButton
-                  onClick={handleSwap}
-                  disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
+                <SwapButton onClick={handleSwap} disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   {isSwapping ? "Swapping..." : `Swap ${displayToken(tokenFrom)} to ${displayToken(tokenTo)}`}
                 </SwapButton>
               </div>
@@ -1198,28 +1219,16 @@ function Swap() {
             <ModalContent initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
               <ModalHeader>
                 <ModalTitle>Select Token</ModalTitle>
-                <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}>
-                  <X size={24} />
-                </button>
+                <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
               </ModalHeader>
               <TokenGrid>
                 {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
-                  <TokenOption
-                    key={token}
-                    onClick={() => selectToken(token)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
+                  <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {displayToken(token)}
                   </TokenOption>
                 ))}
                 {customTokens.map((token) => (
-                  <TokenOption
-                    key={token.address}
-                    onClick={() => selectToken(token.symbol)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
+                  <TokenOption key={token.address} onClick={() => selectToken(token.symbol)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     {token.symbol}
                   </TokenOption>
                 ))}
@@ -1229,32 +1238,17 @@ function Swap() {
         )}
 
         {isNotificationVisible && (
-          <Notification
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            transition={{ duration: 0.3 }}
-          >
+          <Notification initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} transition={{ duration: 0.3 }}>
             {errorMessage}
-            <CloseButton onClick={() => setIsNotificationVisible(false)}>
-              <X size={18} />
-            </CloseButton>
+            <CloseButton onClick={() => setIsNotificationVisible(false)}><X size={18} /></CloseButton>
           </Notification>
         )}
 
         <SwapAnimation isSwapping={isSwapping} hasError={!!errorMessage} />
-        {swapNotification && (
-          <SwapNotification
-            message={swapNotification.message}
-            isSuccess={swapNotification.isSuccess}
-            onClose={() => setSwapNotification(null)}
-          />
-        )}
+        {swapNotification && <SwapNotification message={swapNotification.message} isSuccess={swapNotification.isSuccess} onClose={() => setSwapNotification(null)} />}
 
         <Footer>
-          <FooterText>
-            Powered by TradePulse | Multi-Chain DEX | <FooterLink href="#">Learn More</FooterLink>
-          </FooterText>
+          <FooterText>Powered by TradePulse | Multi-Chain DEX | <FooterLink href="#">Learn More</FooterLink></FooterText>
         </Footer>
       </AppContainer>
     </>
