@@ -141,7 +141,6 @@ const tokenDecimals = {
   },
 };
 
-// اضافه کردن mapping برای CoinGecko IDs
 const tokenCoinGeckoIds = {
   ETH: "ethereum",
   USDC: "usd-coin",
@@ -660,7 +659,6 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// تابع برای گرفتن قیمت توکن از CoinGecko
 const fetchTokenPrice = async (tokenSymbol) => {
   try {
     const coingeckoId = tokenCoinGeckoIds[tokenSymbol];
@@ -708,7 +706,6 @@ function Swap() {
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const [tokenPrices, setTokenPrices] = useState({});
 
-  // گرفتن قیمت توکن‌ها هنگام تغییر شبکه یا توکن
   useEffect(() => {
     const fetchPrices = async () => {
       const fromPrice = await fetchTokenPrice(tokenFrom);
@@ -721,7 +718,6 @@ function Swap() {
     fetchPrices();
   }, [tokenFrom, tokenTo, currentNetwork]);
 
-  // محاسبه معادل USD هنگام تغییر مقدار
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
       const usdValue = (Number(amountFrom) * tokenPrices[tokenFrom]).toFixed(2);
@@ -793,7 +789,8 @@ function Swap() {
       }
 
       setIsPriceRouteReady(false);
-      const amountFromFormatted = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom] || 18).toString();
+      const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
+      const amountFromFormatted = ethers.parseUnits(amountFrom || "0", decimalsFrom).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -824,19 +821,14 @@ function Swap() {
       if (data.code !== 200) throw new Error(data.message || "Failed to fetch quote");
 
       setPriceRoute(data.data);
-      const formattedAmountTo = ethers.formatUnits(data.data.outAmount, tokenDecimals[currentNetwork][tokenTo] || 18);
+      const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
+      const formattedAmountTo = ethers.formatUnits(data.data.outAmount, decimalsTo);
       setAmountTo(formattedAmountTo);
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
 
-      // محاسبه معادل USD برای توکن خروجی
-      if (tokenPrices[tokenTo]) {
-        const usdValueTo = (Number(formattedAmountTo) * tokenPrices[tokenTo]).toFixed(2);
-        setUsdEquivalent(`≈ $${usdValueTo} USD`);
-      }
-
       setGasEstimate({
-        gwei: ethers.formatUnits(data.data.estimatedGas, "gwei"),
+        gwei: ethers.formatUnits(data.data.estimatedGas || "0", "gwei"),
         usd: "N/A",
       });
     } catch (error) {
@@ -864,7 +856,8 @@ function Swap() {
 
     try {
       const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
-      const amountBN = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
+      const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
+      const amountBN = ethers.parseUnits(amountFrom, decimals);
 
       const network = await provider.getNetwork();
       if (Number(network.chainId) !== networks[currentNetwork].chainId) {
@@ -923,7 +916,8 @@ function Swap() {
 
       await checkAndApproveToken();
 
-      const amountFromFormatted = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18).toString();
+      const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
+      const amountFromFormatted = ethers.parseUnits(amountFrom, decimals).toString();
       const params = new URLSearchParams({
         inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
         outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
@@ -955,8 +949,17 @@ function Swap() {
       setTimeout(() => setSwapNotification(null), 5000);
     } catch (error) {
       console.error("Swap error:", error);
-      setErrorMessage(`Swap failed: ${error.message}`);
-      setSwapNotification({ message: `Swap failed: ${error.message}`, isSuccess: false });
+      let userMessage = "Swap failed. Please try again.";
+      if (error.message.includes("user rejected")) {
+        userMessage = "Transaction rejected by user.";
+      } else if (error.message.includes("insufficient funds")) {
+        userMessage = "Insufficient funds for transaction.";
+      } else if (error.message.includes("Swap API error")) {
+        userMessage = `Swap failed: ${error.message}`;
+      }
+
+      setErrorMessage(userMessage);
+      setSwapNotification({ message: userMessage, isSuccess: false });
       setTimeout(() => setSwapNotification(null), 5000);
     } finally {
       setIsSwapping(false);
@@ -1077,7 +1080,6 @@ function Swap() {
       setAmountFrom("0.001");
       setAmountTo("");
       setBestDex("Fetching...");
-      // به‌روزرسانی بالانس‌ها بعد از سوئیچ شبکه
       const fromBalance = await fetchTokenBalance("ETH", address);
       const toBalance = await fetchTokenBalance("USDC", address);
       setTokenFromBalance(fromBalance);
@@ -1154,7 +1156,7 @@ function Swap() {
                         <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </TokenButtonContainer>
+                  </InputContainer>
                 </InputContainer>
                 <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
@@ -1179,7 +1181,7 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* معادل USD برای tokenTo */}</UsdEquivalent>
+                <UsdEquivalent>{/* معادل USD برای tokenTo حذف شد */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
