@@ -763,24 +763,21 @@ function Swap() {
         return;
       }
 
-      const url = `/api/0x?` + new URLSearchParams({
-        chainId: networks[currentNetwork].chainId,
-        sellToken: tokenAddresses[currentNetwork][tokenFrom],
-        buyToken: tokenAddresses[currentNetwork][tokenTo],
-        sellAmount: amountFromInWei.toString(),
-        takerAddress: address,
-        skipValidation: "false",
-      });
+      const url = `/api/0x?${new URLSearchParams({
+  chainId: networks[currentNetwork].chainId,
+  sellToken: tokenAddresses[currentNetwork][tokenFrom],
+  buyToken: tokenAddresses[currentNetwork][tokenTo],
+  sellAmount: amountFromInWei.toString(),
+  takerAddress: address,
+}).toString()}`;
+
 
       console.log("Fetching price data from URL:", url);
 
       const response = await fetch(url, {
-        headers: {
-          "0x-api-key": OX_API_KEY,
-          "0x-version": "v2",
-        },
-        signal: abortController.signal,
-      });
+  signal: abortController.signal,
+});
+
 
       if (!response.ok) {
         const errorText = await response.text();
