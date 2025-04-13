@@ -168,7 +168,6 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌ها بدون تغییر
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -1143,7 +1142,13 @@ function Swap() {
               <Subtitle>Swap Tokens Seamlessly</Subtitle>
               <div>
                 <InputContainer>
-                  <Input type="number" placeholder="Amount to sell" value={amountFrom} onChange={(e) => setAmountFrom(e.target.value || "")} min="0.001" />
+                  <Input
+                    type="number"
+                    placeholder="Amount to sell"
+                    value={amountFrom}
+                    onChange={(e) => setAmountFrom(e.target.value || "")}
+                    min="0.001"
+                  />
                   <TokenButtonContainer>
                     {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
                     <TokenButton onClick={() => openModal(true)}>
@@ -1156,7 +1161,7 @@ function Swap() {
                         <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
                       </BalanceContainer>
                     )}
-                  </InputContainer>
+                  </TokenButtonContainer>
                 </InputContainer>
                 <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
 
@@ -1181,19 +1186,32 @@ function Swap() {
                     )}
                   </TokenButtonContainer>
                 </InputContainer>
-                <UsdEquivalent>{/* معادل USD برای tokenTo حذف شد */}</UsdEquivalent>
 
                 {isConnected && (
                   <InputContainer>
-                    <Input type="text" value={customTokenAddress} onChange={(e) => setCustomTokenAddress(e.target.value)} placeholder="Search token by contract address" />
+                    <Input
+                      type="text"
+                      value={customTokenAddress}
+                      onChange={(e) => setCustomTokenAddress(e.target.value)}
+                      placeholder="Search token by contract address"
+                    />
                     <button onClick={searchToken}>Search</button>
                   </InputContainer>
                 )}
 
-                <RateInfo>Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span></RateInfo>
-                <RateInfo>Estimated Gas: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}</RateInfo>
+                <RateInfo>
+                  Best Rate from: <span style={{ fontWeight: "600" }}>{bestDex}</span>
+                </RateInfo>
+                <RateInfo>
+                  Estimated Gas: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}
+                </RateInfo>
 
-                <SwapButton onClick={handleSwap} disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <SwapButton
+                  onClick={handleSwap}
+                  disabled={isSwapping || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
                   {isSwapping ? "Swapping..." : `Swap ${displayToken(tokenFrom)} to ${displayToken(tokenTo)}`}
                 </SwapButton>
               </div>
@@ -1206,16 +1224,28 @@ function Swap() {
             <ModalContent initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
               <ModalHeader>
                 <ModalTitle>Select Token</ModalTitle>
-                <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
+                <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}>
+                  <X size={24} />
+                </button>
               </ModalHeader>
               <TokenGrid>
                 {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
-                  <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <TokenOption
+                    key={token}
+                    onClick={() => selectToken(token)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
                     {displayToken(token)}
                   </TokenOption>
                 ))}
                 {customTokens.map((token) => (
-                  <TokenOption key={token.address} onClick={() => selectToken(token.symbol)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <TokenOption
+                    key={token.address}
+                    onClick={() => selectToken(token.symbol)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
                     {token.symbol}
                   </TokenOption>
                 ))}
@@ -1225,17 +1255,32 @@ function Swap() {
         )}
 
         {isNotificationVisible && (
-          <Notification initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} transition={{ duration: 0.3 }}>
+          <Notification
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ duration: 0.3 }}
+          >
             {errorMessage}
-            <CloseButton onClick={() => setIsNotificationVisible(false)}><X size={18} /></CloseButton>
+            <CloseButton onClick={() => setIsNotificationVisible(false)}>
+              <X size={18} />
+            </CloseButton>
           </Notification>
         )}
 
         <SwapAnimation isSwapping={isSwapping} hasError={!!errorMessage} />
-        {swapNotification && <SwapNotification message={swapNotification.message} isSuccess={swapNotification.isSuccess} onClose={() => setSwapNotification(null)} />}
+        {swapNotification && (
+          <SwapNotification
+            message={swapNotification.message}
+            isSuccess={swapNotification.isSuccess}
+            onClose={() => setSwapNotification(null)}
+          />
+        )}
 
         <Footer>
-          <FooterText>Powered by TradePulse | Multi-Chain DEX | <FooterLink href="#">Learn More</FooterLink></FooterText>
+          <FooterText>
+            Powered by TradePulse | Multi-Chain DEX | <FooterLink href="#">Learn More</FooterLink>
+          </FooterText>
         </Footer>
       </AppContainer>
     </>
