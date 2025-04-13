@@ -30,7 +30,7 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
-    apiUrl: "https://arbitrum.api.0x.org",
+    apiUrl: "https://open-api.openocean.finance/v4/arbitrum",
   },
   base: {
     chainId: 8453,
@@ -39,7 +39,7 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
-    apiUrl: "https://base.api.0x.org",
+    apiUrl: "https://open-api.openocean.finance/v4/base",
   },
   ethereum: {
     chainId: 1,
@@ -48,7 +48,7 @@ const networks = {
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
-    apiUrl: "https://api.0x.org",
+    apiUrl: "https://open-api.openocean.finance/v4/ethereum",
   },
   bnb: {
     chainId: 56,
@@ -57,7 +57,7 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
-    apiUrl: "https://bsc.api.0x.org",
+    apiUrl: "https://open-api.openocean.finance/v4/bsc",
   },
 };
 
@@ -141,7 +141,7 @@ const tokenDecimals = {
   },
 };
 
-const OX_EXCHANGE_PROXY = "0xdef1c0ded9bec7f1a1670819833240f027b25eff";
+const OPEN_OCEAN_EXCHANGE = "0x6352a56caadC4F1E25CD6c75970Fa2964A9444a4";
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -149,26 +149,6 @@ const ERC20_ABI = [
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
 ];
-const OX_API_KEY = process.env.REACT_APP_0X_API_KEY;
-
-const getSupportedTokens = async (chainId) => {
-  try {
-    const network = Object.values(networks).find(n => n.chainId === chainId);
-    const apiUrl = network.apiUrl;
-    const response = await fetch(`${apiUrl}/swap/v2/sources?chainId=${chainId}`, {
-      headers: {
-        "0x-api-key": OX_API_KEY,
-        "0x-version": "v2",
-      },
-    });
-    if (!response.ok) throw new Error(`Failed to fetch tokens: ${response.status}`);
-    const data = await response.json();
-    return Object.keys(data.sources);
-  } catch (error) {
-    console.error("Error fetching supported tokens:", error);
-    return [];
-  }
-};
 
 const AppContainer = styled.div`
   margin: 0;
@@ -309,7 +289,7 @@ const TrustSticker = styled.div`
     0% 0%, 5% 2%, 10% 0%, 15% 3%, 20% 1%, 25% 4%, 30% 2%, 35% 0%, 40% 3%, 45% 1%,
     50% 4%, 55% 2%, 60% 0%, 65% 3%, 70% 1%, 75% 4%, 80% 2%, 85% 0%, 90% 3%, 95% 1%,
     100% 0%, 100% 100%, 95% 98%, 90% 100%, 85% 97%, 80% 99%, 75% 96%, 70% 98%,
-    65% 100%, 60% 97%, 55% 99%, 50% 96%, 45% 98%, 40% 100%, 35% 97%, 30% 99%,
+    65% 100%, 60% 97%, 55% W3C, 50% 96%, 45% 98%, 40% 100%, 35% 97%, 30% 99%,
     25% 96%, 20% 98%, 15% 100%, 10% 97%, 5% 99%, 0% 100%
   );
 `;
@@ -688,16 +668,6 @@ function Swap() {
   const [swapNotification, setSwapNotification] = useState(null);
   const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
-  const [supportedTokens, setSupportedTokens] = useState([]);
-
-  useEffect(() => {
-    const loadSupportedTokens = async () => {
-      const sources = await getSupportedTokens(networks[currentNetwork].chainId);
-      setSupportedTokens(sources);
-      console.log("Supported sources:", sources);
-    };
-    loadSupportedTokens();
-  }, [currentNetwork]);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider) return "0";
@@ -754,7 +724,7 @@ function Swap() {
       }
 
       setIsPriceRouteReady(false);
-      const amountFromInWei = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom]);
+      const amountFromFormatted = ethers.parseUnits(amountFrom || "0", tokenDecimals[currentNetwork][tokenFrom]).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex("Enter a valid amount greater than 0");
@@ -763,38 +733,40 @@ function Swap() {
         return;
       }
 
-      const url = `/api/0x?${new URLSearchParams({
-  chainId: networks[currentNetwork].chainId,
-  sellToken: tokenAddresses[currentNetwork][tokenFrom],
-  buyToken: tokenAddresses[currentNetwork][tokenTo],
-  sellAmount: amountFromInWei.toString(),
-  takerAddress: address,
-}).toString()}`;
+      const params = new URLSearchParams({
+        inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
+        outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
+        amount: amountFromFormatted,
+        gasPrice: "5",
+        slippage: "1",
+        account: address,
+      });
 
-
+      const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
       console.log("Fetching price data from URL:", url);
 
-      const response = await fetch(url, {
-  signal: abortController.signal,
-});
-
-
+      const response = await fetch(url, { signal: abortController.signal });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      setPriceRoute(data);
-      const formattedAmountTo = ethers.formatUnits(data.buyAmount, tokenDecimals[currentNetwork][tokenTo]);
+      if (data.code !== 200) throw new Error(data.message || "Failed to fetch quote");
+
+      setPriceRoute(data.data);
+      const formattedAmountTo = ethers.formatUnits(data.data.outAmount, tokenDecimals[currentNetwork][tokenTo]);
       setAmountTo(formattedAmountTo);
-      setBestDex(data.sources[0]?.name || "0x Aggregator");
+      setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
 
-      const usdValue = data.estimatedPriceImpact
-        ? (Number(amountFrom) * (1 - data.estimatedPriceImpact / 10000)).toFixed(2)
-        : Number(amountFrom).toFixed(2);
+      const usdValue = Number(amountFrom).toFixed(2);
       setUsdEquivalent(`≈ $${usdValue} USD`);
+
+      setGasEstimate({
+        gwei: ethers.formatUnits(data.data.estimatedGas, "gwei"),
+        usd: "N/A",
+      });
     } catch (error) {
       if (error.name === "AbortError") return;
       console.error("Error fetching rate:", error);
@@ -807,42 +779,9 @@ function Swap() {
     }
   };
 
-  const estimateGas = async () => {
-    if (signer && priceRoute) {
-      try {
-        const gas = await signer.estimateGas({
-          to: priceRoute.to,
-          data: priceRoute.data,
-          value: priceRoute.value ? ethers.getBigInt(priceRoute.value) : 0n,
-        });
-
-        const gasInWei = ethers.toBigInt(gas.toString());
-        const gasInEth = ethers.formatEther(gasInWei);
-        const gasInGwei = ethers.formatUnits(gasInWei, "gwei");
-
-        const ethPriceResponse = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
-        const ethPriceData = await ethPriceResponse.json();
-        const ethPriceInUSD = ethPriceData.ethereum.usd || 1000;
-        const gasCostInUSD = (Number(gasInEth) * ethPriceInUSD).toFixed(2);
-
-        setGasEstimate({ gwei: gasInGwei, usd: gasCostInUSD });
-      } catch (error) {
-        console.error("Error estimating gas:", error);
-        setGasEstimate({ gwei: "Unable to estimate", usd: "N/A" });
-        setErrorMessage(`Gas estimation failed: ${error.message}`);
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (isPriceRouteReady) estimateGas();
-  }, [isPriceRouteReady]);
-
   const checkAndApproveToken = async () => {
     const srcTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-    if (!srcTokenAddress || srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
+    if (srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
       console.log("No approval needed for native token.");
       return true;
     }
@@ -856,14 +795,14 @@ function Swap() {
         await switchNetwork(currentNetwork, window.ethereum);
       }
 
-      let allowance = await tokenContract.allowance(address, OX_EXCHANGE_PROXY);
+      let allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
       let allowanceBN = ethers.toBigInt(allowance.toString());
 
       if (allowanceBN < amountBN) {
-        const tx = await tokenContract.approve(OX_EXCHANGE_PROXY, amountBN);
+        const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountBN);
         await tx.wait();
         await delay(10000);
-        allowance = await tokenContract.allowance(address, OX_EXCHANGE_PROXY);
+        allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
         allowanceBN = ethers.toBigInt(allowance.toString());
         if (allowanceBN < amountBN) throw new Error("Allowance insufficient after approval!");
       }
@@ -907,15 +846,32 @@ function Swap() {
       }
 
       await checkAndApproveToken();
-      await fetchBestRate();
-      if (!isPriceRouteReady) throw new Error("Failed to refresh price route.");
 
-      const txValue = priceRoute.value ? ethers.getBigInt(priceRoute.value) : 0n;
+      const amountFromFormatted = ethers.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom]).toString();
+      const params = new URLSearchParams({
+        inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
+        outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
+        amount: amountFromFormatted,
+        gasPrice: "5",
+        slippage: "1",
+        account: address,
+      });
+
+      const url = `${networks[currentNetwork].apiUrl}/swap?${params.toString()}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Swap API error ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      if (data.code !== 200) throw new Error(data.message || "Failed to execute swap");
+
       const tx = await signer.sendTransaction({
-        to: priceRoute.to,
-        data: priceRoute.data,
-        value: txValue,
-        gasLimit: priceRoute.gas || 500000n,
+        to: data.data.to,
+        data: data.data.data,
+        value: data.data.value ? ethers.getBigInt(data.data.value) : 0n,
+        gasLimit: data.data.estimatedGas || 500000n,
       });
       await tx.wait();
 
