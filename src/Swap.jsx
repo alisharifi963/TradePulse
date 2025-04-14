@@ -724,11 +724,16 @@ function Swap() {
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
       const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromBN = ethers.utils.parseUnits(amountFrom, decimalsFrom);
-      const tokenPrice = tokenPrices[tokenFrom];
-      const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
-      const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
-      setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
+      try {
+        const amountFromBN = ethers.utils.parseUnits(amountFrom, decimalsFrom);
+        const tokenPrice = tokenPrices[tokenFrom];
+        const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
+        const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
+        setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
+      } catch (error) {
+        console.error("Error calculating USD equivalent:", error);
+        setUsdEquivalent("N/A");
+      }
     } else {
       setUsdEquivalent("");
     }
@@ -869,37 +874,20 @@ function Swap() {
   };
 
   const checkAndApproveToken = async () => {
-    const srcTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-    if (!srcTokenAddress) {
-      throw new Error(`Token address for ${tokenFrom} not found in network ${currentNetwork}`);
-    }
-
-    if (srcTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-      return true;
-    }
+    const inTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+    if (!inTokenAddress || inTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") return;
 
     try {
-      const tokenContract = new ethers.Contract(srcTokenAddress, ERC20_ABI, signer);
+      const tokenContract = new ethers.Contract(inTokenAddress, ERC20_ABI, signer);
+      const allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
       const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountBN = ethers.utils.parseUnits(amountFrom, decimals);
+      const amountFromBN = ethers.utils.parseUnits(amountFrom, decimals);
 
-      const network = await provider.getNetwork();
-      if (Number(network.chainId) !== networks[currentNetwork].chainId) {
-        await switchNetwork(currentNetwork, window.ethereum);
-      }
-
-      let allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
-      let allowanceBN = ethers.utils.toBigInt(allowance.toString());
-
-      if (allowanceBN < amountBN) {
-        const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountBN);
+      if (allowance.lt(amountFromBN)) {
+        const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountFromBN);
         await tx.wait();
-        await delay(10000);
-        allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
-        allowanceBN = ethers.utils.toBigInt(allowance.toString());
-        if (allowanceBN < amountBN) throw new Error("Allowance insufficient after approval!");
+        console.log("Token approved successfully");
       }
-      return true;
     } catch (error) {
       console.error("Approval failed:", error);
       setErrorMessage(`Token approval failed: ${error.message}`);
