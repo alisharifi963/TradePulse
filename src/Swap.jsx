@@ -168,6 +168,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -658,6 +659,7 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// تابع برای گرفتن قیمت توکن از CoinGecko
 const fetchTokenPrice = async (tokenSymbol) => {
   try {
     const coingeckoId = tokenCoinGeckoIds[tokenSymbol];
@@ -705,6 +707,7 @@ function Swap() {
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const [tokenPrices, setTokenPrices] = useState({});
 
+  // گرفتن قیمت توکن‌ها
   useEffect(() => {
     const fetchPrices = async () => {
       const fromPrice = await fetchTokenPrice(tokenFrom);
@@ -717,19 +720,15 @@ function Swap() {
     fetchPrices();
   }, [tokenFrom, tokenTo, currentNetwork]);
 
+  // محاسبه معادل USD
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
       const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      try {
-        const amountFromBN = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom);
-        const tokenPrice = tokenPrices[tokenFrom];
-        const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
-        const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
-        setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
-      } catch (error) {
-        console.error("Error calculating USD equivalent:", error);
-        setUsdEquivalent("N/A");
-      }
+      const amountFromBN = ethers.utils.parseUnits(amountFrom, decimalsFrom);
+      const tokenPrice = tokenPrices[tokenFrom];
+      const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
+      const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
+      setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
     } else {
       setUsdEquivalent("");
     }
