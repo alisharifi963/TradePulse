@@ -168,7 +168,6 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌ها (بدون تغییر)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -706,7 +705,6 @@ function Swap() {
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const [tokenPrices, setTokenPrices] = useState({});
 
-  // گرفتن قیمت توکن‌ها
   useEffect(() => {
     const fetchPrices = async () => {
       const fromPrice = await fetchTokenPrice(tokenFrom);
@@ -719,15 +717,19 @@ function Swap() {
     fetchPrices();
   }, [tokenFrom, tokenTo, currentNetwork]);
 
-  // محاسبه معادل USD با در نظر گرفتن اعشار
   useEffect(() => {
     if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
       const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromBN = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom);
-      const tokenPrice = tokenPrices[tokenFrom];
-      const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6); // دقت 6 اعشار برای قیمت
-      const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
-      setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
+      try {
+        const amountFromBN = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom);
+        const tokenPrice = tokenPrices[tokenFrom];
+        const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
+        const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
+        setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
+      } catch (error) {
+        console.error("Error calculating USD equivalent:", error);
+        setUsdEquivalent("N/A");
+      }
     } else {
       setUsdEquivalent("");
     }
@@ -794,6 +796,16 @@ function Swap() {
         return;
       }
 
+      const inTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+      const outTokenAddress = tokenAddresses[currentNetwork][tokenTo];
+      if (!inTokenAddress || !outTokenAddress) {
+        console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
+        setErrorMessage("Invalid token selection for this network.");
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
+
       setIsPriceRouteReady(false);
       const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
       const amountFromFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
@@ -806,8 +818,8 @@ function Swap() {
       }
 
       const params = new URLSearchParams({
-        inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
-        outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
+        inTokenAddress,
+        outTokenAddress,
         amount: amountFromFormatted,
         gasPrice: "5",
         slippage: "1",
@@ -831,15 +843,14 @@ function Swap() {
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
 
-      // محاسبه معادل USD برای توکن خروجی
-      const tokenPrice = await fetchTokenPrice(tokenTo);
-      if (tokenPrice > 0) {
+      const toPrice = await fetchTokenPrice(tokenTo);
+      if (toPrice > 0) {
         const amountToBN = ethers.utils.parseUnits(formattedAmountTo, decimalsTo);
-        const usdValueBN = amountToBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
+        const usdValueBN = amountToBN.mul(Math.round(toPrice * 1e6)).div(1e6);
         const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsTo);
         setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
       } else {
-        setUsdEquivalent("N/A");
+        setUsdEquivalent("Price unavailable");
       }
 
       setGasEstimate({
