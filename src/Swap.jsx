@@ -152,7 +152,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌ها
+// Styles (unchanged)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -669,27 +669,41 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// تابع برای گرفتن قیمت توکن از OpenOcean
+// Updated: Fetch token price with correct USDC address and better error handling
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
   try {
     const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
-    if (!tokenAddress) return 0;
+    if (!tokenAddress) {
+      console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
+      return 0;
+    }
+
+    // Use the correct USDC address based on the current network
+    const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
     const params = new URLSearchParams({
       inTokenAddress: tokenAddress,
-      outTokenAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC on Ethereum
+      outTokenAddress: usdcAddress,
       amount: "1",
     });
 
     const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
     const response = await fetch(url);
-    if (!response.ok) throw new Error("Failed to fetch price from OpenOcean");
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch price from OpenOcean: ${response.status} - ${errorText}`);
+    }
     const data = await response.json();
     if (data.code !== 200) throw new Error(data.message || "Failed to fetch price");
 
+    // Ensure data.data exists before accessing outAmount
+    if (!data.data || !data.data.outAmount) {
+      throw new Error("Invalid response structure from OpenOcean API");
+    }
+
     return data.data.outAmount / 1e6; // Assuming USDC has 6 decimals
   } catch (error) {
-    console.error(`Error fetching price for ${tokenSymbol}:`, error);
+    console.error(`Error fetching price for ${tokenSymbol} on ${currentNetwork}:`, error.message);
     return 0;
   }
 };
@@ -706,62 +720,31 @@ function Swap() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSelectingFrom, setIsSelectingFrom] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
+  const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
   const [address, setAddress] = useState("");
-  const [priceRoute, setPriceRoute] = useState(null);
-  const [isPriceRouteReady, setIsPriceRouteReady] = useState(false);
-  const [isSwapping, setIsSwapping] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
-  const [customTokenAddress, setCustomTokenAddress] = useState("");
-  const [customTokens, setCustomTokens] = useState([]);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
-  const [usdEquivalent, setUsdEquivalent] = useState("");
-  const [tokenFromBalance, setTokenFromBalance] = useState("0");
-  const [tokenToBalance, setTokenToBalance] = useState("0");
-  const [gasEstimate, setGasEstimate] = useState(null);
+  const [balanceFrom, setBalanceFrom] = useState("0");
+  const [balanceTo, setBalanceTo] = useState("0");
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [swapNotification, setSwapNotification] = useState(null);
-  const [currentNetwork, setCurrentNetwork] = useState("base");
-  const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
-  const [tokenPrices, setTokenPrices] = useState({});
+  const [priceRoute, setPriceRoute] = useState(null);
+  const [isPriceRouteReady, setIsPriceRouteReady] = useState(false);
+  const [usdEquivalent, setUsdEquivalent] = useState("");
   const [slippage, setSlippage] = useState("1");
   const [deadline, setDeadline] = useState("20");
+  const [gasEstimate, setGasEstimate] = useState({ gwei: "0", usd: "N/A" });
+  const [searchTokenAddress, setSearchTokenAddress] = useState("");
 
-  // گرفتن قیمت توکن‌ها
-  useEffect(() => {
-    const fetchPrices = async () => {
-      const fromPrice = await fetchTokenPrice(tokenFrom, currentNetwork);
-      const toPrice = await fetchTokenPrice(tokenTo, currentNetwork);
-      setTokenPrices({
-        [tokenFrom]: fromPrice,
-        [tokenTo]: toPrice,
-      });
-    };
-    fetchPrices();
-  }, [tokenFrom, tokenTo, currentNetwork]);
-
-  // محاسبه معادل USD
-  useEffect(() => {
-    if (amountFrom && Number(amountFrom) > 0 && tokenPrices[tokenFrom]) {
-      const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      try {
-        const amountFromBN = ethers.utils.parseUnits(amountFrom, decimalsFrom);
-        const tokenPrice = tokenPrices[tokenFrom];
-        const usdValueBN = amountFromBN.mul(Math.round(tokenPrice * 1e6)).div(1e6);
-        const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsFrom);
-        setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
-      } catch (error) {
-        console.error("Error calculating USD equivalent:", error);
-        setUsdEquivalent("N/A");
-      }
-    } else {
-      setUsdEquivalent("");
-    }
-  }, [amountFrom, tokenPrices, tokenFrom, currentNetwork]);
-
+  // Updated: Fetch token balance with better error handling
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-    if (!userAddress || !provider || !tokenSymbol) return "0";
+    if (!userAddress || !provider || !tokenSymbol) {
+      console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
+      return "0";
+    }
     try {
       const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
       if (!tokenAddress) {
@@ -780,23 +763,12 @@ function Swap() {
       const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
       return ethers.utils.formatUnits(balance, decimals);
     } catch (error) {
-      console.error(`Error fetching balance for ${tokenSymbol}:`, error);
+      console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error.message);
       return "0";
     }
   };
 
-  useEffect(() => {
-    const updateBalances = async () => {
-      if (isConnected && address && provider) {
-        const fromBalance = await fetchTokenBalance(tokenFrom, address);
-        const toBalance = await fetchTokenBalance(tokenTo, address);
-        setTokenFromBalance(fromBalance);
-        setTokenToBalance(toBalance);
-      }
-    };
-    updateBalances();
-  }, [isConnected, address, provider, tokenFrom, tokenTo, currentNetwork]);
-
+  // Updated: Fetch best rate with fallback for gas estimate
   const fetchBestRate = async (signal) => {
     try {
       if (!isConnected || !address) {
@@ -868,15 +840,16 @@ function Swap() {
 
       const nativeToken = networks[currentNetwork].nativeCurrency.symbol;
       const nativePrice = await fetchTokenPrice(nativeToken, currentNetwork);
-      const gasInEth = ethers.utils.formatUnits(data.data.estimatedGas || "0", "gwei") * 1e-9;
+      const gasEstimateValue = data.data.estimatedGas || "200000"; // Fallback to 200,000 if API doesn't provide a value
+      const gasInEth = ethers.utils.formatUnits(gasEstimateValue, "gwei") * 1e-9;
       const gasInUsd = nativePrice > 0 ? (gasInEth * nativePrice).toFixed(2) : "N/A";
       setGasEstimate({
-        gwei: ethers.utils.formatUnits(data.data.estimatedGas || "0", "gwei"),
+        gwei: ethers.utils.formatUnits(gasEstimateValue, "gwei"),
         usd: gasInUsd,
       });
     } catch (error) {
       if (error.name === "AbortError") return;
-      console.error("Error fetching rate:", error);
+      console.error("Error fetching rate:", error.message);
       setAmountTo("");
       setBestDex(t("price_route_not_ready"));
       setPriceRoute(null);
@@ -888,137 +861,15 @@ function Swap() {
 
   const debouncedFetchBestRate = debounce(fetchBestRate, 500);
 
-  useEffect(() => {
-    if (isConnected && address && amountFrom && Number(amountFrom) > 0 && tokenFrom && tokenTo && tokenFrom !== tokenTo) {
-      debouncedFetchBestRate(abortController.signal);
-    } else if (amountFrom && Number(amountFrom) <= 0) {
-      setAmountTo("");
-      setBestDex(t("invalid_amount"));
-      setPriceRoute(null);
-      setIsPriceRouteReady(false);
-      setUsdEquivalent("");
-    }
-    return () => abortController.abort();
-  }, [isConnected, address, amountFrom, tokenFrom, tokenTo, currentNetwork, slippage]);
-
-  const checkAndApproveToken = async () => {
-    const inTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-    if (!inTokenAddress || inTokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") return;
-
-    try {
-      setIsApproving(true);
-      setSwapNotification({ message: t("approving_token"), isSuccess: true });
-      const tokenContract = new ethers.Contract(inTokenAddress, ERC20_ABI, signer);
-      const allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
-      const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromBN = ethers.utils.parseUnits(amountFrom, decimals);
-
-      if (allowance.lt(amountFromBN)) {
-        const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountFromBN);
-        await tx.wait();
-        setSwapNotification({ message: t("token_approved"), isSuccess: true });
-      }
-    } catch (error) {
-      console.error("Approval failed:", error);
-      setErrorMessage(t("approval_failed", { error: error.message }));
-      setSwapNotification({ message: t("approval_failed", { error: error.message }), isSuccess: false });
-      throw error;
-    } finally {
-      setIsApproving(false);
-    }
+  const handleSwapTokens = () => {
+    setTokenFrom(tokenTo);
+    setTokenTo(tokenFrom);
+    setAmountFrom(amountTo || "0");
+    setAmountTo("");
+    setBestDex("Fetching...");
   };
 
-  const handleSwap = async () => {
-    if (!isConnected) {
-      setErrorMessage(t("failed_connect_wallet", { error: "Wallet not connected" }));
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
-    if (!amountFrom || Number(amountFrom) <= 0) {
-      setErrorMessage(t("invalid_amount"));
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
-    if (!isPriceRouteReady) {
-      setErrorMessage(t("price_route_not_ready"));
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
-    setIsSwapping(true);
-    try {
-      const network = await provider.getNetwork();
-      if (Number(network.chainId) !== networks[currentNetwork].chainId) {
-        await switchNetwork(currentNetwork, window.ethereum);
-      }
-
-      await checkAndApproveToken();
-
-      const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromFormatted = ethers.utils.parseUnits(amountFrom, decimals).toString();
-      const params = new URLSearchParams({
-        inTokenAddress: tokenAddresses[currentNetwork][tokenFrom],
-        outTokenAddress: tokenAddresses[currentNetwork][tokenTo],
-        amount: amountFromFormatted,
-        gasPrice: "5",
-        slippage,
-        account: address,
-        deadline: Math.floor(Date.now() / 1000 + Number(deadline) * 60).toString(),
-      });
-
-      const url = `${networks[currentNetwork].apiUrl}/swap?${params.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Swap API error ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      if (data.code !== 200) throw new Error(data.message || "Failed to execute swap");
-
-      const tx = await signer.sendTransaction({
-        to: data.data.to,
-        data: data.data.data,
-        value: data.data.value ? ethers.utils.parseUnits(data.data.value, "wei") : 0,
-        gasLimit: data.data.estimatedGas || 500000,
-      });
-      await tx.wait();
-
-      setSwapNotification({ message: t("swap_successful", { hash: tx.hash }), isSuccess: true });
-      setTimeout(() => setSwapNotification(null), 5000);
-    } catch (error) {
-      console.error("Swap error:", error);
-      let userMessage = t("swap_failed", { error: error.message });
-      if (error.code === 4001) {
-        userMessage = t("transaction_rejected");
-      } else if (error.message.includes("insufficient funds")) {
-        userMessage = t("insufficient_funds");
-      }
-
-      setErrorMessage(userMessage);
-      setSwapNotification({ message: userMessage, isSuccess: false });
-      setTimeout(() => setSwapNotification(null), 5000);
-    } finally {
-      setIsSwapping(false);
-    }
-  };
-
-  const openModal = (isFrom) => {
-    setIsSelectingFrom(isFrom);
-    setIsModalOpen(true);
-  };
-
-  const selectToken = (token) => {
-    if (isSelectingFrom) setTokenFrom(token);
-    else setTokenTo(token);
-    setIsModalOpen(false);
-  };
-
+  // Updated: Ensure wallet switches to Arbitrum One if network is unsupported
   const handleConnect = async () => {
     try {
       if (window.ethereum) {
@@ -1031,7 +882,7 @@ function Swap() {
           setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
-          await switchNetwork("base", window.ethereum);
+          await switchNetwork("arbitrum", window.ethereum); // Switch to Arbitrum
           return;
         }
         const signer = await provider.getSigner();
@@ -1052,71 +903,11 @@ function Swap() {
         setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     } catch (error) {
-      console.error("Connection error:", error);
+      console.error("Connection error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
-  };
-
-  const disconnectWallet = () => {
-    setAddress("");
-    setIsConnected(false);
-    setProvider(null);
-    setSigner(null);
-    setTokenFromBalance("0");
-    setTokenToBalance("0");
-  };
-
-  const searchToken = async () => {
-    if (!isConnected) {
-      setErrorMessage(t("failed_connect_wallet", { error: "Wallet not connected" }));
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
-    if (ethers.utils.isAddress(customTokenAddress)) {
-      try {
-        const network = await provider.getNetwork();
-        if (Number(network.chainId) !== networks[currentNetwork].chainId) {
-          setErrorMessage(t("network_not_supported", { networks: networks[currentNetwork].name }));
-          setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 3000);
-          await switchNetwork(currentNetwork, provider);
-          return;
-        }
-
-        const contract = new ethers.Contract(customTokenAddress, ERC20_ABI, provider);
-        const symbol = await contract.symbol();
-        const decimals = await contract.decimals();
-        const newCustomToken = { symbol, address: customTokenAddress, decimals };
-        setCustomTokens((prev) => [...prev, newCustomToken].filter((item, index, self) => index === self.findIndex((t) => t.address === item.address)));
-        setTokenFrom(symbol);
-      } catch (error) {
-        console.error("Error fetching token:", error);
-        setErrorMessage(t("failed_fetch_token", { error: error.message }));
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-      }
-    } else {
-      setErrorMessage(t("invalid_contract_address"));
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-    }
-  };
-
-  const swapTokens = () => {
-    setTokenFrom(tokenTo);
-    setTokenTo(tokenFrom);
-    setAmountFrom("");
-    setAmountTo("");
-    setBestDex(t("price_route_not_ready"));
-    setUsdEquivalent("");
-  };
-
-  const setMaxAmountFrom = () => {
-    if (tokenFromBalance && Number(tokenFromBalance) > 0) setAmountFrom(tokenFromBalance);
   };
 
   const handleNetworkChange = async (networkKey) => {
@@ -1124,219 +915,391 @@ function Swap() {
       await switchNetwork(networkKey, window.ethereum);
       setCurrentNetwork(networkKey);
       setIsNetworkDropdownOpen(false);
-      setTokenFrom("ETH");
-      setTokenTo("USDC");
-      setAmountFrom("0.001");
       setAmountTo("");
-      setBestDex(t("price_route_not_ready"));
-      const fromBalance = await fetchTokenBalance("ETH", address);
-      const toBalance = await fetchTokenBalance("USDC", address);
-      setTokenFromBalance(fromBalance);
-      setTokenToBalance(toBalance);
+      setBestDex("Fetching...");
     } catch (error) {
-      console.error("Network switch failed:", error);
+      console.error("Network switch error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
   };
 
-  const displayToken = (token) => token;
+  const handleAmountFromChange = (e) => {
+    const value = e.target.value;
+    setAmountFrom(value);
+    setAmountTo("");
+    setBestDex("Fetching...");
+  };
+
+  const handleMaxClick = (balance) => {
+    setAmountFrom(balance);
+    setAmountTo("");
+    setBestDex("Fetching...");
+  };
+
+  const handleTokenSelect = (token) => {
+    if (isSelectingFrom) {
+      setTokenFrom(token);
+      if (token === tokenTo) {
+        setTokenTo(tokenFrom);
+      }
+    } else {
+      setTokenTo(token);
+      if (token === tokenFrom) {
+        setTokenFrom(tokenTo);
+      }
+    }
+    setAmountTo("");
+    setBestDex("Fetching...");
+    setIsModalOpen(false);
+  };
+
+  const handleSearchToken = async () => {
+    if (!ethers.utils.isAddress(searchTokenAddress)) {
+      setErrorMessage(t("invalid_contract_address"));
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
+      return;
+    }
+
+    try {
+      const tokenContract = new ethers.Contract(searchTokenAddress, ERC20_ABI, provider);
+      const symbol = await tokenContract.symbol();
+      tokenAddresses[currentNetwork][symbol] = searchTokenAddress;
+      tokenDecimals[currentNetwork][symbol] = await tokenContract.decimals();
+      handleTokenSelect(symbol);
+    } catch (error) {
+      console.error("Error fetching token:", error.message);
+      setErrorMessage(t("failed_fetch_token", { error: error.message }));
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
+    }
+  };
+
+  const handleSwap = async () => {
+    try {
+      if (!isConnected || !address || !priceRoute || !isPriceRouteReady) {
+        setErrorMessage(t("invalid_amount"));
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
+
+      setIsSwapping(true);
+      const inTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+      const outTokenAddress = tokenAddresses[currentNetwork][tokenTo];
+      const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
+      const amountOutMin = ethers.utils.parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18).mul(100 - Number(slippage)).div(100);
+
+      if (inTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
+        setSwapNotification({ message: t("approving_token"), isSuccess: false });
+        const tokenContract = new ethers.Contract(inTokenAddress, ERC20_ABI, signer);
+        const allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
+        if (allowance.lt(amountIn)) {
+          const approveTx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountIn);
+          await approveTx.wait();
+          setSwapNotification({ message: t("token_approved"), isSuccess: true });
+          setTimeout(() => setSwapNotification(null), 3000);
+        }
+      }
+
+      const params = new URLSearchParams({
+        inTokenAddress,
+        outTokenAddress,
+        amount: amountIn.toString(),
+        gasPrice: "5",
+        slippage,
+        account: address,
+        referrer: address,
+        amountOutMin: amountOutMin.toString(),
+        deadline: Math.floor(Date.now() / 1000 + Number(deadline) * 60).toString(),
+      });
+
+      const url = `${networks[currentNetwork].apiUrl}/swap?${params.toString()}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Swap API error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      if (data.code !== 200) throw new Error(data.message || "Failed to swap");
+
+      const tx = await signer.sendTransaction(data.data);
+      const receipt = await tx.wait();
+      setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }), isSuccess: true });
+    } catch (error) {
+      console.error("Swap error:", error.message);
+      if (error.code === 4001) {
+        setSwapNotification({ message: t("transaction_rejected"), isSuccess: false });
+      } else if (error.code === "INSUFFICIENT_FUNDS") {
+        setSwapNotification({ message: t("insufficient_funds"), isSuccess: false });
+      } else {
+        setSwapNotification({ message: t("swap_failed", { error: error.message }), isSuccess: false });
+      }
+    } finally {
+      setIsSwapping(false);
+      setTimeout(() => setSwapNotification(null), 5000);
+    }
+  };
+
+  const handleLanguageChange = (e) => {
+    i18n.changeLanguage(e.target.value);
+  };
+
+  useEffect(() => {
+    if (isConnected && address) {
+      fetchTokenBalance(tokenFrom, address).then(setBalanceFrom);
+      fetchTokenBalance(tokenTo, address).then(setBalanceTo);
+    }
+  }, [isConnected, address, tokenFrom, tokenTo, currentNetwork, provider]);
+
+  useEffect(() => {
+    if (amountFrom && Number(amountFrom) > 0 && isConnected) {
+      debouncedFetchBestRate(abortController.signal);
+    }
+    return () => abortController.abort();
+  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage]);
+
+  useEffect(() => {
+    if (window.ethereum) {
+      window.ethereum.on("accountsChanged", (accounts) => {
+        if (accounts.length > 0) {
+          setAddress(accounts[0]);
+          setIsConnected(true);
+        } else {
+          setIsConnected(false);
+          setAddress("");
+          setProvider(null);
+          setSigner(null);
+        }
+      });
+
+      window.ethereum.on("chainChanged", async (chainId) => {
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(chainId));
+        if (networkKey) {
+          setCurrentNetwork(networkKey);
+          setAmountTo("");
+          setBestDex("Fetching...");
+        } else {
+          setIsConnected(false);
+          setAddress("");
+          setProvider(null);
+          setSigner(null);
+        }
+      });
+    }
+  }, []);
 
   return (
-    <>
+    <AppContainer>
       <GlobalStyle />
-      <AppContainer>
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-          <Particle />
-          <ParticleBottom />
-        </div>
-
-        <Header>
-          <HeaderTitle>
-            <HeartIcon animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }}>
-              <HeartPulse size={20} />
-            </HeartIcon>
-            <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "white" }}>{t("title")}</h1>
-            <BetaTag>Beta</BetaTag>
-          </HeaderTitle>
-          <WalletContainer>
-            <NetworkSelector>
-              <NetworkButton onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}>
-                <span>{networks[currentNetwork].name}</span>
-                <ChevronDown size={16} />
-              </NetworkButton>
-              {isNetworkDropdownOpen && (
-                <NetworkDropdown>
-                  {Object.entries(networks).map(([key, network]) => (
-                    <NetworkOption key={key} onClick={() => handleNetworkChange(key)}>
-                      {network.name}
-                    </NetworkOption>
-                  ))}
-                </NetworkDropdown>
-              )}
-            </NetworkSelector>
-            <LanguageSelector onChange={(e) => i18n.changeLanguage(e.target.value)}>
-              <option value="en">English</option>
-              <option value="fa">فارسی</option>
-            </LanguageSelector>
-            <ConnectButton onClick={isConnected ? disconnectWallet : handleConnect} whileHover={{ scale: 1.05 }}>
-              {isConnected ? `${address.slice(0, 6)}...${address.slice(-4)}` : t("connect_wallet")}
+      <Particle />
+      <ParticleBottom />
+      <Header>
+        <HeaderTitle>
+          <HeartIcon whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
+            <HeartPulse size={24} />
+          </HeartIcon>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white" }}>{t("title")}</h1>
+          <BetaTag>Beta</BetaTag>
+        </HeaderTitle>
+        <div style={{ display: "flex", gap: "1rem" }}>
+          <NetworkSelector>
+            <NetworkButton onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}>
+              {networks[currentNetwork].name} <ChevronDown size={16} />
+            </NetworkButton>
+            {isNetworkDropdownOpen && (
+              <NetworkDropdown>
+                {Object.keys(networks).map((networkKey) => (
+                  <NetworkOption key={networkKey} onClick={() => handleNetworkChange(networkKey)}>
+                    {networks[networkKey].name}
+                  </NetworkOption>
+                ))}
+              </NetworkDropdown>
+            )}
+          </NetworkSelector>
+          <LanguageSelector onChange={handleLanguageChange} value={i18n.language}>
+            <option value="en">English</option>
+            <option value="fa">فارسی</option>
+          </LanguageSelector>
+          {isConnected ? (
+            <WalletContainer>
+              <Wallet size={20} color="#3b82f6" />
+              <span style={{ color: "white", fontSize: "0.875rem" }}>
+                {address.slice(0, 6)}...{address.slice(-4)}
+              </span>
+            </WalletContainer>
+          ) : (
+            <ConnectButton whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleConnect}>
+              {t("connect_wallet")}
             </ConnectButton>
-          </WalletContainer>
-        </Header>
-
-        <TrustSticker>
-          <TrustText>The Dex You Can Trust</TrustText>
-        </TrustSticker>
-
-        <MainContent>
-          <Card>
-            <CardContent>
-              <Subtitle>{t("swap_tokens")}</Subtitle>
-              <div>
-                <InputContainer>
-                  <Input
-                    type="number"
-                    placeholder={t("amount_to_sell")}
-                    value={amountFrom}
-                    onChange={(e) => setAmountFrom(e.target.value || "")}
-                    min="0.001"
-                  />
-                  <TokenButtonContainer>
-                    {isConnected && <MaxButton onClick={setMaxAmountFrom}>Max</MaxButton>}
-                    <TokenButton onClick={() => openModal(true)}>
-                      <span>{displayToken(tokenFrom)}</span>
-                      <ChevronDown size={16} />
-                    </TokenButton>
-                    {isConnected && (
-                      <BalanceContainer>
-                        <Wallet size={14} />
-                        <span>{parseFloat(tokenFromBalance).toFixed(4)}</span>
-                      </BalanceContainer>
-                    )}
-                  </TokenButtonContainer>
-                </InputContainer>
-                <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
-
-                <SwapTokensContainer>
-                  <SwapTokensButton onClick={swapTokens} whileHover={{ scale: 1.05 }}>
-                    <ArrowLeftRight size={24} />
-                  </SwapTokensButton>
-                </SwapTokensContainer>
-
-                <InputContainer>
-                  <Input type="number" placeholder={t("amount_to_buy")} value={amountTo} readOnly />
-                  <TokenButtonContainer>
-                    <TokenButton onClick={() => openModal(false)}>
-                      <span>{displayToken(tokenTo)}</span>
-                      <ChevronDown size={16} />
-                    </TokenButton>
-                    {isConnected && (
-                      <BalanceContainer>
-                        <Wallet size={14} />
-                        <span>{parseFloat(tokenToBalance).toFixed(4)}</span>
-                      </BalanceContainer>
-                    )}
-                  </TokenButtonContainer>
-                </InputContainer>
-
+          )}
+        </div>
+      </Header>
+      <TrustSticker>
+        <TrustText>The Dex You Can Trust</TrustText>
+      </TrustSticker>
+      <MainContent>
+        <Card>
+          <CardContent>
+            <Subtitle>{t("swap_tokens")}</Subtitle>
+            <InputContainer>
+              <Input
+                type="number"
+                value={amountFrom}
+                onChange={handleAmountFromChange}
+                placeholder="0.0"
+                min="0"
+                step="0.001"
+              />
+              <TokenButtonContainer>
+                <TokenButton onClick={() => { setIsSelectingFrom(true); setIsModalOpen(true); }}>
+                  {tokenFrom} <ChevronDown size={16} />
+                </TokenButton>
                 {isConnected && (
-                  <InputContainer>
-                    <Input
-                      type="text"
-                      value={customTokenAddress}
-                      onChange={(e) => setCustomTokenAddress(e.target.value)}
-                      placeholder={t("search_token")}
-                    />
-                    <button onClick={searchToken}>Search</button>
-                  </InputContainer>
+                  <BalanceContainer onClick={() => handleMaxClick(balanceFrom)}>
+                    <span>{Number(balanceFrom).toFixed(4)}</span>
+                    <MaxButton>{t("max")}</MaxButton>
+                  </BalanceContainer>
                 )}
-
-                <SettingsContainer>
-                  <div>
-                    <label>{t("slippage")}</label>
-                    <SettingsInput
-                      type="number"
-                      value={slippage}
-                      onChange={(e) => setSlippage(e.target.value)}
-                      min="0.1"
-                      max="50"
-                      step="0.1"
-                    />
-                  </div>
-                  <div>
-                    <label>{t("deadline")}</label>
-                    <SettingsInput
-                      type="number"
-                      value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
-                      min="1"
-                      max="60"
-                    />
-                  </div>
-                </SettingsContainer>
-
-                <RateInfo>{t("best_rate_from")}: <span style={{ fontWeight: "600" }}>{bestDex}</span></RateInfo>
-                <RateInfo>{t("estimated_gas")}: {gasEstimate ? `${gasEstimate.gwei} Gwei (~$${gasEstimate.usd} USD)` : "Calculating..."}</RateInfo>
-
-                <SwapButton
-                  onClick={handleSwap}
-                  disabled={isSwapping || isApproving || !amountFrom || Number(amountFrom) <= 0 || !isPriceRouteReady}
+              </TokenButtonContainer>
+            </InputContainer>
+            <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
+            <SwapTokensContainer>
+              <SwapTokensButton
+                onClick={handleSwapTokens}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <ArrowLeftRight size={20} />
+              </SwapTokensButton>
+            </SwapTokensContainer>
+            <InputContainer>
+              <Input
+                type="number"
+                value={amountTo}
+                placeholder="0.0"
+                readOnly
+              />
+              <TokenButtonContainer>
+                <TokenButton onClick={() => { setIsSelectingFrom(false); setIsModalOpen(true); }}>
+                  {tokenTo} <ChevronDown size={16} />
+                </TokenButton>
+                {isConnected && (
+                  <BalanceContainer>
+                    <span>{Number(balanceTo).toFixed(4)}</span>
+                  </BalanceContainer>
+                )}
+              </TokenButtonContainer>
+            </InputContainer>
+            <InputContainer>
+              <Input
+                type="text"
+                value={searchTokenAddress}
+                onChange={(e) => setSearchTokenAddress(e.target.value)}
+                placeholder={t("search_token")}
+              />
+              <TokenButton onClick={handleSearchToken}>
+                Search
+              </TokenButton>
+            </InputContainer>
+            <SettingsContainer>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("slippage")}</label>
+                <SettingsInput
+                  type="number"
+                  value={slippage}
+                  onChange={(e) => setSlippage(e.target.value)}
+                  min="0"
+                  max="100"
+                  step="0.1"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("deadline")}</label>
+                <SettingsInput
+                  type="number"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  min="1"
+                  step="1"
+                />
+              </div>
+            </SettingsContainer>
+            <RateInfo>
+              {t("best_rate_from")}: {bestDex}
+              <br />
+              {t("estimated_gas")}: {gasEstimate.gwei} Gwei (~${gasEstimate.usd} USD)
+            </RateInfo>
+            <SwapButton
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleSwap}
+              disabled={!isConnected || !isPriceRouteReady || isSwapping}
+            >
+              {isSwapping ? t("swapping") : t("swap_button", { from: tokenFrom, to: tokenTo })}
+            </SwapButton>
+          </CardContent>
+        </Card>
+      </MainContent>
+      {isModalOpen && (
+        <ModalOverlay
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setIsModalOpen(false)}
+        >
+          <ModalContent
+            onClick={(e) => e.stopPropagation()}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+          >
+            <ModalHeader>
+              <ModalTitle>{t("select_token")}</ModalTitle>
+              <CloseButton onClick={() => setIsModalOpen(false)}>&times;</CloseButton>
+            </ModalHeader>
+            <TokenGrid>
+              {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
+                <TokenOption
+                  key={token}
+                  onClick={() => handleTokenSelect(token)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {isSwapping || isApproving ? t("swapping") : t("swap_button", { from: displayToken(tokenFrom), to: displayToken(tokenTo) })}
-                </SwapButton>
-              </div>
-            </CardContent>
-          </Card>
-        </MainContent>
-
-        {isModalOpen && (
-          <ModalOverlay initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <ModalContent initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}>
-              <ModalHeader>
-                <ModalTitle>{t("select_token")}</ModalTitle>
-                <button onClick={() => setIsModalOpen(false)} style={{ color: "white" }}><X size={24} /></button>
-              </ModalHeader>
-              <TokenGrid>
-                {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
-                  <TokenOption key={token} onClick={() => selectToken(token)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    {displayToken(token)}
-                  </TokenOption>
-                ))}
-                {customTokens.map((token) => (
-                  <TokenOption key={token.address} onClick={() => selectToken(token.symbol)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    {token.symbol}
-                  </TokenOption>
-                ))}
-              </TokenGrid>
-            </ModalContent>
-          </ModalOverlay>
-        )}
-
-        {isNotificationVisible && (
-          <Notification initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} transition={{ duration: 0.3 }}>
-            {errorMessage}
-            <CloseButton onClick={() => setIsNotificationVisible(false)}><X size={18} /></CloseButton>
-          </Notification>
-        )}
-
-        <SwapAnimation isSwapping={isSwapping || isApproving} hasError={!!errorMessage} />
-        {swapNotification && (
-          <SwapNotification
-            message={swapNotification.message}
-            isSuccess={swapNotification.isSuccess}
-            onClose={() => setSwapNotification(null)}
-          />
-        )}
-
-        <Footer>
-          <FooterText>{t("powered_by")} | <FooterLink href="#">Learn More</FooterLink></FooterText>
-        </Footer>
-      </AppContainer>
-    </>
+                  {token}
+                </TokenOption>
+              ))}
+            </TokenGrid>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+      {isNotificationVisible && (
+        <Notification
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <AlertTriangle size={20} />
+          <span>{errorMessage}</span>
+          <CloseButton onClick={() => setIsNotificationVisible(false)}>&times;</CloseButton>
+        </Notification>
+      )}
+      {swapNotification && (
+        <SwapNotification
+          message={swapNotification.message}
+          isSuccess={swapNotification.isSuccess}
+          onClose={() => setSwapNotification(null)}
+        />
+      )}
+      <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
+      <Footer>
+        <FooterText>
+          {t("powered_by")} <FooterLink href="https://openocean.finance/" target="_blank">OpenOcean</FooterLink>
+        </FooterText>
+      </Footer>
+    </AppContainer>
   );
 }
 
