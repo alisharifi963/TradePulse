@@ -32,7 +32,7 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
-    apiUrl: "https://open-api.openocean.finance/v4/arbitrum",
+    apiUrl: "https://open-api.openocean.finance/v3/arbitrum",
   },
   base: {
     chainId: 8453,
@@ -41,7 +41,7 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
-    apiUrl: "https://open-api.openocean.finance/v4/base",
+    apiUrl: "https://open-api.openocean.finance/v3/base",
   },
   ethereum: {
     chainId: 1,
@@ -50,7 +50,7 @@ const networks = {
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
-    apiUrl: "https://open-api.openocean.finance/v4/ethereum",
+    apiUrl: "https://open-api.openocean.finance/v3/eth",
   },
   bnb: {
     chainId: 56,
@@ -59,7 +59,7 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
-    apiUrl: "https://open-api.openocean.finance/v4/bsc",
+    apiUrl: "https://open-api.openocean.finance/v3/bsc",
   },
 };
 
@@ -152,7 +152,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// Styles (unchanged)
+// Styles
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -669,7 +669,6 @@ const switchNetwork = async (networkKey, provider) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Updated: Fetch token price with correct USDC address and better error handling
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
   try {
     const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
@@ -678,30 +677,34 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
       return 0;
     }
 
-    // Use the correct USDC address based on the current network
     const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+
+    // Convert amount to the token's smallest unit (e.g., wei for ETH)
+    const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
+    const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
 
     const params = new URLSearchParams({
       inTokenAddress: tokenAddress,
       outTokenAddress: usdcAddress,
-      amount: "1",
+      amount: amountInUnits,
     });
 
     const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
+    console.log(`Fetching price for ${tokenSymbol} on ${currentNetwork}: ${url}`);
     const response = await fetch(url);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch price from OpenOcean: ${response.status} - ${errorText}`);
     }
     const data = await response.json();
+    console.log(`OpenOcean API response for ${tokenSymbol} on ${currentNetwork}:`, data);
     if (data.code !== 200) throw new Error(data.message || "Failed to fetch price");
 
-    // Ensure data.data exists before accessing outAmount
     if (!data.data || !data.data.outAmount) {
       throw new Error("Invalid response structure from OpenOcean API");
     }
 
-    return data.data.outAmount / 1e6; // Assuming USDC has 6 decimals
+    return data.data.outAmount / 1e6; // USDC has 6 decimals
   } catch (error) {
     console.error(`Error fetching price for ${tokenSymbol} on ${currentNetwork}:`, error.message);
     return 0;
@@ -739,7 +742,6 @@ function Swap() {
   const [gasEstimate, setGasEstimate] = useState({ gwei: "0", usd: "N/A" });
   const [searchTokenAddress, setSearchTokenAddress] = useState("");
 
-  // Updated: Fetch token balance with better error handling
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (!userAddress || !provider || !tokenSymbol) {
       console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
@@ -768,7 +770,6 @@ function Swap() {
     }
   };
 
-  // Updated: Fetch best rate with fallback for gas estimate
   const fetchBestRate = async (signal) => {
     try {
       if (!isConnected || !address) {
@@ -812,6 +813,7 @@ function Swap() {
       });
 
       const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
+      console.log(`Fetching swap rate on ${currentNetwork}: ${url}`);
       const response = await fetch(url, { signal });
       if (!response.ok) {
         const errorText = await response.text();
@@ -819,11 +821,19 @@ function Swap() {
       }
 
       const data = await response.json();
+      console.log(`OpenOcean API swap rate response on ${currentNetwork}:`, data);
       if (data.code !== 200) throw new Error(data.message || "Failed to fetch quote");
 
       setPriceRoute(data.data);
       const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
       const formattedAmountTo = ethers.utils.formatUnits(data.data.outAmount, decimalsTo);
+
+      // Sanity check: Ensure the swap amount is realistic
+      const amountToNumber = Number(formattedAmountTo);
+      if (amountToNumber > 10000) {
+        throw new Error("Unrealistic swap amount returned by OpenOcean API");
+      }
+
       setAmountTo(formattedAmountTo);
       setBestDex(data.data.dex || "OpenOcean Aggregator");
       setIsPriceRouteReady(true);
@@ -840,7 +850,7 @@ function Swap() {
 
       const nativeToken = networks[currentNetwork].nativeCurrency.symbol;
       const nativePrice = await fetchTokenPrice(nativeToken, currentNetwork);
-      const gasEstimateValue = data.data.estimatedGas || "200000"; // Fallback to 200,000 if API doesn't provide a value
+      const gasEstimateValue = data.data.estimatedGas || "200000";
       const gasInEth = ethers.utils.formatUnits(gasEstimateValue, "gwei") * 1e-9;
       const gasInUsd = nativePrice > 0 ? (gasInEth * nativePrice).toFixed(2) : "N/A";
       setGasEstimate({
@@ -869,7 +879,6 @@ function Swap() {
     setBestDex("Fetching...");
   };
 
-  // Updated: Ensure wallet switches to Arbitrum One if network is unsupported
   const handleConnect = async () => {
     try {
       if (window.ethereum) {
@@ -882,7 +891,7 @@ function Swap() {
           setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
-          await switchNetwork("arbitrum", window.ethereum); // Switch to Arbitrum
+          await switchNetwork("arbitrum", window.ethereum);
           return;
         }
         const signer = await provider.getSigner();
@@ -1258,7 +1267,7 @@ function Swap() {
           >
             <ModalHeader>
               <ModalTitle>{t("select_token")}</ModalTitle>
-              <CloseButton onClick={() => setIsModalOpen(false)}>&times;</CloseButton>
+              <CloseButton onClick={() => setIsModalOpen(false)}>×</CloseButton>
             </ModalHeader>
             <TokenGrid>
               {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
@@ -1283,7 +1292,7 @@ function Swap() {
         >
           <AlertTriangle size={20} />
           <span>{errorMessage}</span>
-          <CloseButton onClick={() => setIsNotificationVisible(false)}>&times;</CloseButton>
+          <CloseButton onClick={() => setIsNotificationVisible(false)}>×</CloseButton>
         </Notification>
       )}
       {swapNotification && (
