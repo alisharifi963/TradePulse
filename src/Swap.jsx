@@ -667,8 +667,6 @@ const switchNetwork = async (networkKey, provider) => {
   }
 };
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
   try {
     const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
@@ -803,6 +801,21 @@ function Swap() {
         return;
       }
 
+      // Fetch the price of the input token (e.g., 1 ETH in USDC) to estimate a reasonable range
+      const fromPriceInUSDC = await fetchTokenPrice(tokenFrom, currentNetwork);
+      const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
+      if (fromPriceInUSDC === 0 || toPriceInUSDC === 0) {
+        throw new Error("Failed to fetch token prices for sanity check");
+      }
+
+      // Calculate the relative price (e.g., ETH/USDC rate)
+      const relativePrice = fromPriceInUSDC / toPriceInUSDC; // e.g., 1 ETH ≈ 2600 USDC
+      console.log(`Relative price (${tokenFrom}/${tokenTo}): ${relativePrice}`);
+
+      const expectedAmountTo = Number(amountFrom) * relativePrice;
+      const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2; // Allow 2x the expected amount with slippage
+      console.log(`Expected ${tokenTo} amount: ${expectedAmountTo}, Max reasonable amount: ${maxReasonableAmount}`);
+
       const params = new URLSearchParams({
         inTokenAddress,
         outTokenAddress,
@@ -826,22 +839,32 @@ function Swap() {
 
       setPriceRoute(data.data);
       const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
+      console.log(`Raw outAmount from OpenOcean: ${data.data.outAmount}`);
+      console.log(`Decimals for ${tokenTo}: ${decimalsTo}`);
       const formattedAmountTo = ethers.utils.formatUnits(data.data.outAmount, decimalsTo);
+      console.log(`Formatted outAmount (${tokenTo}): ${formattedAmountTo}`);
 
-      // Sanity check: Ensure the swap amount is realistic
+      // Dynamic sanity check based on expected amount
       const amountToNumber = Number(formattedAmountTo);
-      if (amountToNumber > 10000) {
-        throw new Error("Unrealistic swap amount returned by OpenOcean API");
+      console.log(`Amount to number: ${amountToNumber}`);
+      if (amountToNumber > maxReasonableAmount) {
+        console.warn(`Unrealistic swap amount: ${amountToNumber} ${tokenTo} for ${amountFrom} ${tokenFrom}`);
+        // Fallback to estimated amount based on price
+        const estimatedAmountTo = expectedAmountTo.toFixed(6);
+        setAmountTo(estimatedAmountTo);
+        setBestDex("Estimated (OpenOcean API failed)");
+        setIsPriceRouteReady(true);
+        setSwapNotification({ message: t("using_estimated_amount"), isSuccess: false });
+        setTimeout(() => setSwapNotification(null), 3000);
+      } else {
+        setAmountTo(formattedAmountTo);
+        setBestDex(data.data.dex || "OpenOcean Aggregator");
+        setIsPriceRouteReady(true);
       }
 
-      setAmountTo(formattedAmountTo);
-      setBestDex(data.data.dex || "OpenOcean Aggregator");
-      setIsPriceRouteReady(true);
-
-      const toPrice = await fetchTokenPrice(tokenTo, currentNetwork);
-      if (toPrice > 0) {
+      if (toPriceInUSDC > 0) {
         const amountToBN = ethers.utils.parseUnits(formattedAmountTo, decimalsTo);
-        const usdValueBN = amountToBN.mul(Math.round(toPrice * 1e6)).div(1e6);
+        const usdValueBN = amountToBN.mul(Math.round(toPriceInUSDC * 1e6)).div(1e6);
         const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsTo);
         setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
       } else {
