@@ -757,7 +757,7 @@ function Swap() {
       }
 
       const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
-      return ethers.formatUnits(balance, decimals);
+      return ethers.utils.formatUnits(balance, decimals);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol}:`, error);
       return "0";
@@ -881,7 +881,7 @@ function Swap() {
       const tokenContract = new ethers.Contract(inTokenAddress, ERC20_ABI, signer);
       const allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
       const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromBN = ethers.parseUnits(amountFrom, decimals);
+      const amountFromBN = ethers.utils.parseUnits(amountFrom, decimals);
 
       if (allowance.lt(amountFromBN)) {
         const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountFromBN);
