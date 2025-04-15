@@ -64,7 +64,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -757,7 +757,7 @@ function Swap() {
       }
 
       const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
-      return ethers.utils.formatUnits(balance, decimals);
+      return ethers.formatUnits(balance, decimals);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol}:`, error);
       return "0";
@@ -881,7 +881,7 @@ function Swap() {
       const tokenContract = new ethers.Contract(inTokenAddress, ERC20_ABI, signer);
       const allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
       const decimals = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromBN = ethers.utils.parseUnits(amountFrom, decimals);
+      const amountFromBN = ethers.parseUnits(amountFrom, decimals);
 
       if (allowance.lt(amountFromBN)) {
         const tx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountFromBN);
@@ -992,7 +992,7 @@ function Swap() {
   const handleConnect = async () => {
     try {
       if (window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const network = await provider.getNetwork();
         const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId)) || "base";
