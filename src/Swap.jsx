@@ -32,7 +32,7 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
-    apiUrl: "https://open-api.openocean.finance/v3/arbitrum",
+    apiUrl: "https://arbitrum.api.0x.org",
   },
   base: {
     chainId: 8453,
@@ -41,7 +41,7 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
-    apiUrl: "https://open-api.openocean.finance/v3/base",
+    apiUrl: "https://base.api.0x.org",
   },
   ethereum: {
     chainId: 1,
@@ -50,7 +50,7 @@ const networks = {
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
-    apiUrl: "https://open-api.openocean.finance/v3/eth",
+    apiUrl: "https://api.0x.org",
   },
   bnb: {
     chainId: 56,
@@ -59,7 +59,7 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
-    apiUrl: "https://open-api.openocean.finance/v3/bsc",
+    apiUrl: "https://bsc.api.0x.org",
   },
 };
 
@@ -143,7 +143,8 @@ const tokenDecimals = {
   },
 };
 
-const OPEN_OCEAN_EXCHANGE = "0x6352a56caadC4F1E25CD6c75970Fa2964A9444a4";
+let PERMIT2_ADDRESS = null;
+
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -152,7 +153,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// Styles
+// استایل‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -677,32 +678,33 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
 
     const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
-    // Convert amount to the token's smallest unit (e.g., wei for ETH)
     const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
     const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
 
     const params = new URLSearchParams({
-      inTokenAddress: tokenAddress,
-      outTokenAddress: usdcAddress,
-      amount: amountInUnits,
+      sellToken: tokenAddress,
+      buyToken: usdcAddress,
+      sellAmount: amountInUnits,
     });
 
-    const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
-    console.log(`Fetching price for ${tokenSymbol} on ${currentNetwork}: ${url}`);
-    const response = await fetch(url);
+    const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price?${params.toString()}`;
+    const response = await fetch(url, {
+      headers: {
+        "0x-api-key": process.env.REACT_APP_0X_API_KEY,
+        "0x-version": "v2",
+      },
+    });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to fetch price from OpenOcean: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to fetch price from 0x: ${response.status} - ${errorText}`);
     }
     const data = await response.json();
-    console.log(`OpenOcean API response for ${tokenSymbol} on ${currentNetwork}:`, data);
-    if (data.code !== 200) throw new Error(data.message || "Failed to fetch price");
 
-    if (!data.data || !data.data.outAmount) {
-      throw new Error("Invalid response structure from OpenOcean API");
+    if (!data || !data.buyAmount) {
+      throw new Error("Invalid response structure from 0x API");
     }
 
-    return data.data.outAmount / 1e6; // USDC has 6 decimals
+    return data.buyAmount / 1e6; // USDC has 6 decimals
   } catch (error) {
     console.error(`Error fetching price for ${tokenSymbol} on ${currentNetwork}:`, error.message);
     return 0;
@@ -780,9 +782,9 @@ function Swap() {
         return;
       }
 
-      const inTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-      const outTokenAddress = tokenAddresses[currentNetwork][tokenTo];
-      if (!inTokenAddress || !outTokenAddress) {
+      const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
+      if (!sellTokenAddress || !buyTokenAddress) {
         console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
         setErrorMessage(t("invalid_contract_address"));
         setIsNotificationVisible(true);
@@ -792,7 +794,7 @@ function Swap() {
 
       setIsPriceRouteReady(false);
       const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
-      const amountFromFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
+      const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
         setBestDex(t("invalid_amount"));
@@ -801,64 +803,58 @@ function Swap() {
         return;
       }
 
-      // Fetch the price of the input token (e.g., 1 ETH in USDC) to estimate a reasonable range
       const fromPriceInUSDC = await fetchTokenPrice(tokenFrom, currentNetwork);
       const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
       if (fromPriceInUSDC === 0 || toPriceInUSDC === 0) {
         throw new Error("Failed to fetch token prices for sanity check");
       }
 
-      // Calculate the relative price (e.g., ETH/USDC rate)
-      const relativePrice = fromPriceInUSDC / toPriceInUSDC; // e.g., 1 ETH ≈ 2600 USDC
-      console.log(`Relative price (${tokenFrom}/${tokenTo}): ${relativePrice}`);
-
+      const relativePrice = fromPriceInUSDC / toPriceInUSDC;
       const expectedAmountTo = Number(amountFrom) * relativePrice;
-      const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2; // Allow 2x the expected amount with slippage
-      console.log(`Expected ${tokenTo} amount: ${expectedAmountTo}, Max reasonable amount: ${maxReasonableAmount}`);
+      const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
 
       const params = new URLSearchParams({
-        inTokenAddress,
-        outTokenAddress,
-        amount: amountFromFormatted,
-        gasPrice: "5",
-        slippage,
-        account: address,
+        sellToken: sellTokenAddress,
+        buyToken: buyTokenAddress,
+        sellAmount: sellAmountFormatted,
+        slippagePercentage: Number(slippage) / 100,
+        takerAddress: address,
       });
 
-      const url = `${networks[currentNetwork].apiUrl}/quote?${params.toString()}`;
-      console.log(`Fetching swap rate on ${currentNetwork}: ${url}`);
-      const response = await fetch(url, { signal });
+      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote?${params.toString()}`;
+      const response = await fetch(url, {
+        headers: {
+          "0x-api-key": process.env.REACT_APP_0X_API_KEY,
+          "0x-version": "v2",
+        },
+        signal,
+      });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      console.log(`OpenOcean API swap rate response on ${currentNetwork}:`, data);
-      if (data.code !== 200) throw new Error(data.message || "Failed to fetch quote");
 
-      setPriceRoute(data.data);
+      if (data.issues && data.issues.allowance && data.issues.allowance.spender) {
+        PERMIT2_ADDRESS = data.issues.allowance.spender;
+      }
+
+      setPriceRoute(data);
       const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
-      console.log(`Raw outAmount from OpenOcean: ${data.data.outAmount}`);
-      console.log(`Decimals for ${tokenTo}: ${decimalsTo}`);
-      const formattedAmountTo = ethers.utils.formatUnits(data.data.outAmount, decimalsTo);
-      console.log(`Formatted outAmount (${tokenTo}): ${formattedAmountTo}`);
-
-      // Dynamic sanity check based on expected amount
+      const formattedAmountTo = ethers.utils.formatUnits(data.buyAmount, decimalsTo);
       const amountToNumber = Number(formattedAmountTo);
-      console.log(`Amount to number: ${amountToNumber}`);
+
       if (amountToNumber > maxReasonableAmount) {
-        console.warn(`Unrealistic swap amount: ${amountToNumber} ${tokenTo} for ${amountFrom} ${tokenFrom}`);
-        // Fallback to estimated amount based on price
         const estimatedAmountTo = expectedAmountTo.toFixed(6);
         setAmountTo(estimatedAmountTo);
-        setBestDex("Estimated (OpenOcean API failed)");
+        setBestDex("Estimated (0x API failed)");
         setIsPriceRouteReady(true);
         setSwapNotification({ message: t("using_estimated_amount"), isSuccess: false });
         setTimeout(() => setSwapNotification(null), 3000);
       } else {
         setAmountTo(formattedAmountTo);
-        setBestDex(data.data.dex || "OpenOcean Aggregator");
+        setBestDex("0x Aggregator");
         setIsPriceRouteReady(true);
       }
 
@@ -873,7 +869,7 @@ function Swap() {
 
       const nativeToken = networks[currentNetwork].nativeCurrency.symbol;
       const nativePrice = await fetchTokenPrice(nativeToken, currentNetwork);
-      const gasEstimateValue = data.data.estimatedGas || "200000";
+      const gasEstimateValue = data.estimatedGas || "200000";
       const gasInEth = ethers.utils.formatUnits(gasEstimateValue, "gwei") * 1e-9;
       const gasInUsd = nativePrice > 0 ? (gasInEth * nativePrice).toFixed(2) : "N/A";
       setGasEstimate({
@@ -1019,17 +1015,17 @@ function Swap() {
       }
 
       setIsSwapping(true);
-      const inTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-      const outTokenAddress = tokenAddresses[currentNetwork][tokenTo];
+      const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
       const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
       const amountOutMin = ethers.utils.parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18).mul(100 - Number(slippage)).div(100);
 
-      if (inTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
+      if (sellTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
         setSwapNotification({ message: t("approving_token"), isSuccess: false });
-        const tokenContract = new ethers.Contract(inTokenAddress, ERC20_ABI, signer);
-        const allowance = await tokenContract.allowance(address, OPEN_OCEAN_EXCHANGE);
+        const tokenContract = new ethers.Contract(sellTokenAddress, ERC20_ABI, signer);
+        const allowance = await tokenContract.allowance(address, PERMIT2_ADDRESS);
         if (allowance.lt(amountIn)) {
-          const approveTx = await tokenContract.approve(OPEN_OCEAN_EXCHANGE, amountIn);
+          const approveTx = await tokenContract.approve(PERMIT2_ADDRESS, amountIn);
           await approveTx.wait();
           setSwapNotification({ message: t("token_approved"), isSuccess: true });
           setTimeout(() => setSwapNotification(null), 3000);
@@ -1037,28 +1033,36 @@ function Swap() {
       }
 
       const params = new URLSearchParams({
-        inTokenAddress,
-        outTokenAddress,
-        amount: amountIn.toString(),
-        gasPrice: "5",
-        slippage,
-        account: address,
-        referrer: address,
-        amountOutMin: amountOutMin.toString(),
-        deadline: Math.floor(Date.now() / 1000 + Number(deadline) * 60).toString(),
+        sellToken: sellTokenAddress,
+        buyToken: buyTokenAddress,
+        sellAmount: amountIn.toString(),
+        takerAddress: address,
+        slippagePercentage: Number(slippage) / 100,
       });
 
-      const url = `${networks[currentNetwork].apiUrl}/swap?${params.toString()}`;
-      const response = await fetch(url);
+      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote?${params.toString()}`;
+      const response = await fetch(url, {
+        headers: {
+          "0x-api-key": process.env.REACT_APP_0X_API_KEY,
+          "0x-version": "v2",
+        },
+      });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Swap API error ${response.status}: ${errorText}`);
       }
       const data = await response.json();
-      if (data.code !== 200) throw new Error(data.message || "Failed to swap");
 
-      const tx = await signer.sendTransaction(data.data);
-      const receipt = await tx.wait();
+      const tx = {
+        to: data.to,
+        data: data.data,
+        value: data.value,
+        gasPrice: data.gasPrice,
+        gas: data.estimatedGas,
+      };
+
+      const receipt = await signer.sendTransaction(tx);
+      await receipt.wait();
       setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }), isSuccess: true });
     } catch (error) {
       console.error("Swap error:", error.message);
@@ -1328,7 +1332,7 @@ function Swap() {
       <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
       <Footer>
         <FooterText>
-          {t("powered_by")} <FooterLink href="https://openocean.finance/" target="_blank">OpenOcean</FooterLink>
+          {t("powered_by")} <FooterLink href="https://0x.org/" target="_blank">0x</FooterLink>
         </FooterText>
       </Footer>
     </AppContainer>
