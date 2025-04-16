@@ -153,7 +153,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌ها
+// Styles
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -681,19 +681,15 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
     const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
     const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
 
-    const params = new URLSearchParams({
+    const params = {
       sellToken: tokenAddress,
       buyToken: usdcAddress,
       sellAmount: amountInUnits,
-    });
+    };
 
-    const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price?${params.toString()}`;
-    const response = await fetch(url, {
-      headers: {
-        "0x-api-key": process.env.REACT_APP_0X_API_KEY,
-        "0x-version": "v2",
-      },
-    });
+    const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price`;
+    const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`);
+
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch price from 0x: ${response.status} - ${errorText}`);
@@ -813,22 +809,17 @@ function Swap() {
       const expectedAmountTo = Number(amountFrom) * relativePrice;
       const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
 
-      const params = new URLSearchParams({
+      const params = {
         sellToken: sellTokenAddress,
         buyToken: buyTokenAddress,
         sellAmount: sellAmountFormatted,
         slippagePercentage: Number(slippage) / 100,
         takerAddress: address,
-      });
+      };
 
-      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote?${params.toString()}`;
-      const response = await fetch(url, {
-        headers: {
-          "0x-api-key": process.env.REACT_APP_0X_API_KEY,
-          "0x-version": "v2",
-        },
-        signal,
-      });
+      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`, { signal });
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`API error ${response.status}: ${errorText}`);
@@ -1032,21 +1023,17 @@ function Swap() {
         }
       }
 
-      const params = new URLSearchParams({
+      const params = {
         sellToken: sellTokenAddress,
         buyToken: buyTokenAddress,
         sellAmount: amountIn.toString(),
         takerAddress: address,
         slippagePercentage: Number(slippage) / 100,
-      });
+      };
 
-      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote?${params.toString()}`;
-      const response = await fetch(url, {
-        headers: {
-          "0x-api-key": process.env.REACT_APP_0X_API_KEY,
-          "0x-version": "v2",
-        },
-      });
+      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`);
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Swap API error ${response.status}: ${errorText}`);
