@@ -688,7 +688,7 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
     };
 
     const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price`;
-    const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`);
+    const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -815,10 +815,11 @@ function Swap() {
         sellAmount: sellAmountFormatted,
         slippagePercentage: Number(slippage) / 100,
         takerAddress: address,
+        chainId: networks[currentNetwork].chainId,
       };
 
       const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
-      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`, { signal });
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`, { signal });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -1032,7 +1033,7 @@ function Swap() {
       };
 
       const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
-      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`);
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`);
 
       if (!response.ok) {
         const errorText = await response.text();
