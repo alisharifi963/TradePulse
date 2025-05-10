@@ -1,6 +1,15 @@
 export default async function handler(req, res) {
   const { url, params } = req.query;
 
+//
+    const paramsObj = JSON.parse(params);         
+  const fullUrl = `${url}?${new URLSearchParams(paramsObj)}`;
+  const response = await fetch(fullUrl, {
+    headers: { "0x-api-key": process.env.ZEROX_API_KEY }
+  });
+
+//
+  
   if (!url) {
     return res.status(400).json({ error: "URL is required" });
   }
