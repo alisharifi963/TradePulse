@@ -66,7 +66,7 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8", // Corrected USDC address on Arbitrum
+    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
@@ -153,7 +153,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// Styles (unchanged from the thinking trace)
+// Styles
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -646,20 +646,22 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 const switchNetwork = async (networkKey, provider) => {
   const network = networks[networkKey];
   try {
-    await provider.send("wallet_switchEthereumChain", [
-      { chainId: `0x${network.chainId.toString(16)}` },
-    ]);
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: `0x${network.chainId.toString(16)}` }],
+    });
   } catch (error) {
     if (error.code === 4902) {
-      await provider.send("wallet_addEthereumChain", [
-        {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [{
           chainId: `0x${network.chainId.toString(16)}`,
           chainName: network.name,
           rpcUrls: [network.rpcUrl],
           nativeCurrency: network.nativeCurrency,
           blockExplorerUrls: [network.explorerUrl],
-        },
-      ]);
+        }],
+      });
     } else {
       throw error;
     }
@@ -674,11 +676,7 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
       return 0;
     }
 
-    const usdcAddress = tokenAddresses[currentNetwork]["USDC"];
-    if (!usdcAddress) {
-      console.warn(`USDC address not found in network ${currentNetwork}`);
-      return 0;
-    }
+    const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
     const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
     const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
@@ -690,22 +688,16 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
     };
 
     const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price`;
-    const queryParams = new URLSearchParams({
-      url: encodeURIComponent(url),
-      params: encodeURIComponent(JSON.stringify(params)),
-    });
-
-    const response = await fetch(`/api/swap?${queryParams.toString()}`);
+    const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`);
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch price from 0x: ${response.status} - ${errorText}`);
     }
-
     const data = await response.json();
+
     if (!data || !data.buyAmount) {
-      console.warn("No valid price data returned from 0x API");
-      return 0;
+      throw new Error("Invalid response structure from 0x API");
     }
 
     return data.buyAmount / 1e6; // USDC has 6 decimals
@@ -809,20 +801,13 @@ function Swap() {
 
       const fromPriceInUSDC = await fetchTokenPrice(tokenFrom, currentNetwork);
       const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
-      let relativePrice = 0;
-      let expectedAmountTo = 0;
-      let maxReasonableAmount = 0;
-
       if (fromPriceInUSDC === 0 || toPriceInUSDC === 0) {
-        console.warn("Using fallback: Could not fetch token prices for sanity check");
-        relativePrice = 1; // Fallback to a neutral value
-        expectedAmountTo = Number(amountFrom);
-        maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
-      } else {
-        relativePrice = fromPriceInUSDC / toPriceInUSDC;
-        expectedAmountTo = Number(amountFrom) * relativePrice;
-        maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
+        throw new Error("Failed to fetch token prices for sanity check");
       }
+
+      const relativePrice = fromPriceInUSDC / toPriceInUSDC;
+      const expectedAmountTo = Number(amountFrom) * relativePrice;
+      const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
 
       const params = {
         sellToken: sellTokenAddress,
@@ -833,12 +818,7 @@ function Swap() {
       };
 
       const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
-      const queryParams = new URLSearchParams({
-        url: encodeURIComponent(url),
-        params: encodeURIComponent(JSON.stringify(params)),
-      });
-
-      const response = await fetch(`/api/swap?${queryParams.toString()}`, { signal });
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`, { signal });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -911,43 +891,36 @@ function Swap() {
 
   const handleConnect = async () => {
     try {
-      if (!window.ethereum) {
+      if (window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const network = await provider.getNetwork();
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId));
+        if (!networkKey) {
+          const supportedNetworks = Object.values(networks).map(n => n.name).join(", ");
+          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
+          setIsNotificationVisible(true);
+          setTimeout(() => setIsNotificationVisible(false), 3000);
+          await switchNetwork("arbitrum", window.ethereum);
+          return;
+        }
+        const signer = await provider.getSigner();
+        const userAddress = await signer.getAddress();
+        setProvider(provider);
+        setSigner(signer);
+        setAddress(userAddress);
+        setIsConnected(true);
+        await fetch('/api/save-wallet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: userAddress }),
+        });
+        setCurrentNetwork(networkKey);
+      } else {
         setErrorMessage(t("metamask_not_installed"));
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
       }
-
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const network = await provider.getNetwork();
-      const networkKey = Object.keys(networks).find(
-        (key) => networks[key].chainId === Number(network.chainId)
-      );
-
-      if (!networkKey) {
-        const supportedNetworks = Object.values(networks)
-          .map((n) => n.name)
-          .join(", ");
-        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        await switchNetwork("arbitrum", provider);
-        return;
-      }
-
-      const signer = provider.getSigner();
-      const userAddress = await signer.getAddress();
-      setProvider(provider);
-      setSigner(signer);
-      setAddress(userAddress);
-      setIsConnected(true);
-      await fetch("/api/save-wallet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: userAddress }),
-      });
-      setCurrentNetwork(networkKey);
     } catch (error) {
       console.error("Connection error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }));
@@ -958,8 +931,7 @@ function Swap() {
 
   const handleNetworkChange = async (networkKey) => {
     try {
-      if (!provider) throw new Error("Provider not initialized");
-      await switchNetwork(networkKey, provider);
+      await switchNetwork(networkKey, window.ethereum);
       setCurrentNetwork(networkKey);
       setIsNetworkDropdownOpen(false);
       setAmountTo("");
@@ -1060,12 +1032,7 @@ function Swap() {
       };
 
       const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
-      const queryParams = new URLSearchParams({
-        url: encodeURIComponent(url),
-        params: encodeURIComponent(JSON.stringify(params)),
-      });
-
-      const response = await fetch(`/api/swap?${queryParams.toString()}`);
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}¶ms=${encodeURIComponent(JSON.stringify(params))}`);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -1104,7 +1071,7 @@ function Swap() {
   };
 
   useEffect(() => {
-    if (isConnected && address && provider) {
+    if (isConnected && address) {
       fetchTokenBalance(tokenFrom, address).then(setBalanceFrom);
       fetchTokenBalance(tokenTo, address).then(setBalanceTo);
     }
@@ -1118,46 +1085,33 @@ function Swap() {
   }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage]);
 
   useEffect(() => {
-    if (!window.ethereum) return;
+    if (window.ethereum) {
+      window.ethereum.on("accountsChanged", (accounts) => {
+        if (accounts.length > 0) {
+          setAddress(accounts[0]);
+          setIsConnected(true);
+        } else {
+          setIsConnected(false);
+          setAddress("");
+          setProvider(null);
+          setSigner(null);
+        }
+      });
 
-    const handleAccountsChanged = (accounts) => {
-      if (accounts.length > 0) {
-        setAddress(accounts[0]);
-        setIsConnected(true);
-      } else {
-        setIsConnected(false);
-        setAddress("");
-        setProvider(null);
-        setSigner(null);
-      }
-    };
-
-    const handleChainChanged = async (chainId) => {
-      const networkKey = Object.keys(networks).find(
-        (key) => networks[key].chainId === Number(chainId)
-      );
-      if (networkKey) {
-        const newProvider = new ethers.providers.Web3Provider(window.ethereum);
-        setProvider(newProvider);
-        setSigner(newProvider.getSigner());
-        setCurrentNetwork(networkKey);
-        setAmountTo("");
-        setBestDex("Fetching...");
-      } else {
-        setIsConnected(false);
-        setAddress("");
-        setProvider(null);
-        setSigner(null);
-      }
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
-
-    return () => {
-      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
-      window.ethereum.removeListener("chainChanged", handleChainChanged);
-    };
+      window.ethereum.on("chainChanged", async (chainId) => {
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(chainId));
+        if (networkKey) {
+          setCurrentNetwork(networkKey);
+          setAmountTo("");
+          setBestDex("Fetching...");
+        } else {
+          setIsConnected(false);
+          setAddress("");
+          setProvider(null);
+          setSigner(null);
+        }
+      });
+    }
   }, []);
 
   return (
