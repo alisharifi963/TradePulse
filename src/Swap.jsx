@@ -5,7 +5,10 @@ import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 import { debounce } from 'lodash';
 import { useTranslation } from 'react-i18next';
+import { constructSimpleSDK } from "@paraswap/sdk";
+import { SwapSide } from "@paraswap/core";
 
+// استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -24,6 +27,7 @@ const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
+// تنظیمات شبکه‌ها
 const networks = {
   arbitrum: {
     chainId: 42161,
@@ -32,7 +36,7 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
-    apiUrl: "https://arbitrum.api.0x.org",
+    apiUrl: "https://api.paraswap.io",
   },
   base: {
     chainId: 8453,
@@ -41,7 +45,7 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
-    apiUrl: "https://base.api.0x.org",
+    apiUrl: "https://api.paraswap.io",
   },
   ethereum: {
     chainId: 1,
@@ -50,7 +54,7 @@ const networks = {
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
-    apiUrl: "https://api.0x.org",
+    apiUrl: "https://api.paraswap.io",
   },
   bnb: {
     chainId: 56,
@@ -59,10 +63,11 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
-    apiUrl: "https://bsc.api.0x.org",
+    apiUrl: "https://api.paraswap.io",
   },
 };
 
+// آدرس توکن‌ها
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -103,6 +108,7 @@ const tokenAddresses = {
   },
 };
 
+// اعشار توکن‌ها
 const tokenDecimals = {
   arbitrum: {
     ETH: 18,
@@ -143,8 +149,7 @@ const tokenDecimals = {
   },
 };
 
-let PERMIT2_ADDRESS = null;
-
+// ABI برای قراردادهای ERC20
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -153,7 +158,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// Styles
+// استایل‌های کامپوننت‌ها
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -643,6 +648,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   );
 };
 
+// توابع کمکی
 const switchNetwork = async (networkKey, provider) => {
   const network = networks[networkKey];
   try {
@@ -668,6 +674,14 @@ const switchNetwork = async (networkKey, provider) => {
   }
 };
 
+const createSwapper = (networkId) => {
+  const paraswap = constructSimpleSDK({
+    chainId: networkId,
+    apiURL: networks[Object.keys(networks).find(key => networks[key].networkId === networkId)].apiUrl,
+  });
+  return paraswap;
+};
+
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
   try {
     const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
@@ -677,30 +691,23 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
     }
 
     const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-
     const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
     const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
 
-    const params = {
-      sellToken: tokenAddress,
-      buyToken: usdcAddress,
-      sellAmount: amountInUnits,
-    };
+    const paraswap = createSwapper(networks[currentNetwork].networkId);
+    const priceRoute = await paraswap.Swap.getRate({
+      srcToken: tokenAddress,
+      destToken: usdcAddress,
+      amount: amountInUnits,
+      side: SwapSide.SELL,
+      version: "6.2",
+    });
 
-    const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price`;
-    const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch price from 0x: ${response.status} - ${errorText}`);
-    }
-    const data = await response.json();
-
-    if (!data || !data.buyAmount) {
-      throw new Error("Invalid response structure from 0x API");
+    if (!priceRoute || !priceRoute.destAmount) {
+      throw new Error("Invalid response from Velora API");
     }
 
-    return data.buyAmount / 1e6; // USDC has 6 decimals
+    return Number(priceRoute.destAmount) / 1e6; // USDC has 6 decimals
   } catch (error) {
     console.error(`Error fetching price for ${tokenSymbol} on ${currentNetwork}:`, error.message);
     return 0;
@@ -799,57 +806,25 @@ function Swap() {
         return;
       }
 
-      const fromPriceInUSDC = await fetchTokenPrice(tokenFrom, currentNetwork);
-      const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
-      if (fromPriceInUSDC === 0 || toPriceInUSDC === 0) {
-        throw new Error("Failed to fetch token prices for sanity check");
-      }
+      const paraswap = createSwapper(networks[currentNetwork].networkId);
+      const priceRoute = await paraswap.Swap.getRate({
+        srcToken: sellTokenAddress,
+        destToken: buyTokenAddress,
+        amount: sellAmountFormatted,
+        side: SwapSide.SELL,
+        version: "6.2",
+        userAddress: address,
+        slippage: Number(slippage),
+      });
 
-      const relativePrice = fromPriceInUSDC / toPriceInUSDC;
-      const expectedAmountTo = Number(amountFrom) * relativePrice;
-      const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
-
-      const params = {
-        sellToken: sellTokenAddress,
-        buyToken: buyTokenAddress,
-        sellAmount: sellAmountFormatted,
-        slippagePercentage: Number(slippage) / 100,
-        takerAddress: address,
-        chainId: networks[currentNetwork].chainId,
-      };
-
-      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
-      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`, { signal });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.issues && data.issues.allowance && data.issues.allowance.spender) {
-        PERMIT2_ADDRESS = data.issues.allowance.spender;
-      }
-
-      setPriceRoute(data);
+      setPriceRoute(priceRoute);
       const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
-      const formattedAmountTo = ethers.utils.formatUnits(data.buyAmount, decimalsTo);
-      const amountToNumber = Number(formattedAmountTo);
+      const formattedAmountTo = ethers.utils.formatUnits(priceRoute.destAmount, decimalsTo);
+      setAmountTo(formattedAmountTo);
+      setBestDex("Velora");
+      setIsPriceRouteReady(true);
 
-      if (amountToNumber > maxReasonableAmount) {
-        const estimatedAmountTo = expectedAmountTo.toFixed(6);
-        setAmountTo(estimatedAmountTo);
-        setBestDex("Estimated (0x API failed)");
-        setIsPriceRouteReady(true);
-        setSwapNotification({ message: t("using_estimated_amount"), isSuccess: false });
-        setTimeout(() => setSwapNotification(null), 3000);
-      } else {
-        setAmountTo(formattedAmountTo);
-        setBestDex("0x Aggregator");
-        setIsPriceRouteReady(true);
-      }
-
+      const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
       if (toPriceInUSDC > 0) {
         const amountToBN = ethers.utils.parseUnits(formattedAmountTo, decimalsTo);
         const usdValueBN = amountToBN.mul(Math.round(toPriceInUSDC * 1e6)).div(1e6);
@@ -859,15 +834,9 @@ function Swap() {
         setUsdEquivalent("Price unavailable");
       }
 
-      const nativeToken = networks[currentNetwork].nativeCurrency.symbol;
-      const nativePrice = await fetchTokenPrice(nativeToken, currentNetwork);
-      const gasEstimateValue = data.estimatedGas || "200000";
-      const gasInEth = ethers.utils.formatUnits(gasEstimateValue, "gwei") * 1e-9;
-      const gasInUsd = nativePrice > 0 ? (gasInEth * nativePrice).toFixed(2) : "N/A";
-      setGasEstimate({
-        gwei: ethers.utils.formatUnits(gasEstimateValue, "gwei"),
-        usd: gasInUsd,
-      });
+      const gasEstimateValue = priceRoute.estimatedGas || "200000";
+      const gasInGwei = ethers.utils.formatUnits(gasEstimateValue, "gwei");
+      setGasEstimate({ gwei: gasInGwei, usd: "N/A" });
     } catch (error) {
       if (error.name === "AbortError") return;
       console.error("Error fetching rate:", error.message);
@@ -1010,43 +979,39 @@ function Swap() {
       const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
       const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
       const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
-      const amountOutMin = ethers.utils.parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18).mul(100 - Number(slippage)).div(100);
+      const minAmount = ethers.utils.parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18)
+        .mul(100 - Number(slippage))
+        .div(100);
+
+      const paraswap = createSwapper(networks[currentNetwork].networkId);
+      const transactionRequest = await paraswap.Swap.buildTx({
+        srcToken: sellTokenAddress,
+        destToken: buyTokenAddress,
+        srcAmount: amountIn.toString(),
+        destAmount: minAmount.toString(),
+        priceRoute,
+        userAddress: address,
+        partner: "your_partner_name", // اگه اسم partner داری، اینجا عوضش کن
+      });
 
       if (sellTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
         setSwapNotification({ message: t("approving_token"), isSuccess: false });
         const tokenContract = new ethers.Contract(sellTokenAddress, ERC20_ABI, signer);
-        const allowance = await tokenContract.allowance(address, PERMIT2_ADDRESS);
+        const allowance = await tokenContract.allowance(address, transactionRequest.to);
         if (allowance.lt(amountIn)) {
-          const approveTx = await tokenContract.approve(PERMIT2_ADDRESS, amountIn);
+          const approveTx = await tokenContract.approve(transactionRequest.to, amountIn);
           await approveTx.wait();
           setSwapNotification({ message: t("token_approved"), isSuccess: true });
           setTimeout(() => setSwapNotification(null), 3000);
         }
       }
 
-      const params = {
-        sellToken: sellTokenAddress,
-        buyToken: buyTokenAddress,
-        sellAmount: amountIn.toString(),
-        takerAddress: address,
-        slippagePercentage: Number(slippage) / 100,
-      };
-
-      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
-      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Swap API error ${response.status}: ${errorText}`);
-      }
-      const data = await response.json();
-
       const tx = {
-        to: data.to,
-        data: data.data,
-        value: data.value,
-        gasPrice: data.gasPrice,
-        gas: data.estimatedGas,
+        to: transactionRequest.to,
+        data: transactionRequest.data,
+        value: transactionRequest.value,
+        gasPrice: transactionRequest.gasPrice,
+        gas: transactionRequest.estimatedGas,
       };
 
       const receipt = await signer.sendTransaction(tx);
@@ -1320,7 +1285,7 @@ function Swap() {
       <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
       <Footer>
         <FooterText>
-          {t("powered_by")} <FooterLink href="https://0x.org/" target="_blank">0x</FooterLink>
+          {t("powered_by")} <FooterLink href="https://paraswap.io/" target="_blank">Velora</FooterLink>
         </FooterText>
       </Footer>
     </AppContainer>
