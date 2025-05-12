@@ -695,23 +695,14 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 
 // توابع کمکی
 const detectEthereumProvider = async () => {
-  if (typeof window === "undefined") return null;
-
-  if (!window.ethereum) {
-    return null;
-  }
+  if (typeof window === "undefined" || !window.ethereum) return null;
 
   const providers = window.ethereum?.providers || [window.ethereum];
-  const metaMaskProvider = providers.find((p) => p.isMetaMask) || providers[0];
-  if (!metaMaskProvider) {
-    return null;
-  }
-
-  return metaMaskProvider;
+  return providers.find((p) => p.isMetaMask) || providers[0] || null;
 };
 
 const switchNetwork = async (networkKey, provider) => {
-  if (typeof window === "undefined" || !provider) return false;
+  if (!provider) return false;
   const network = networks[networkKey];
   try {
     await provider.request({
@@ -754,12 +745,11 @@ const createSwapper = (networkId) => {
     return null;
   }
   try {
-    const paraswap = constructSimpleSDK({
+    return constructSimpleSDK({
       chainId: networkId,
       apiURL: networks[networkKey].apiUrl,
-      fetcher: axios, // استفاده از axios
+      fetcher: axios,
     });
-    return paraswap;
   } catch (error) {
     console.error("Failed to initialize Paraswap SDK:", error.message);
     return null;
@@ -767,7 +757,7 @@ const createSwapper = (networkId) => {
 };
 
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
-  if (typeof window === "undefined") return 0; // جلوگیری از اجرا در زمان SSR
+  if (typeof window === "undefined") return 0;
   try {
     const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
     if (!tokenAddress) {
@@ -864,14 +854,14 @@ function Swap() {
   };
 
   const fetchBestRate = async (signal) => {
-    if (typeof window === "undefined" || isInitialLoad) return; // جلوگیری از اجرا در زمان SSR یا لود اولیه
+    if (typeof window === "undefined" || isInitialLoad) return;
     try {
       if (!isConnected || !address || !provider) {
         setAmountTo("");
-        setBestDex(t("invalid_amount"));
+        setBestDex(t("invalid_amount") || "Invalid Amount");
         setPriceRoute(null);
         setUsdEquivalent("");
-        setSwapNotification({ message: t("invalid_amount"), isSuccess: false });
+        setSwapNotification({ message: t("invalid_amount") || "Invalid Amount", isSuccess: false });
         setTimeout(() => setSwapNotification(null), 3000);
         return;
       }
@@ -880,7 +870,7 @@ function Swap() {
       const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
       if (!sellTokenAddress || !buyTokenAddress) {
         console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
-        setErrorMessage(t("invalid_contract_address"));
+        setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
@@ -891,7 +881,7 @@ function Swap() {
       const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
-        setBestDex(t("invalid_amount"));
+        setBestDex(t("invalid_amount") || "Invalid Amount");
         setPriceRoute(null);
         setUsdEquivalent("");
         return;
@@ -899,7 +889,10 @@ function Swap() {
 
       const paraswap = createSwapper(networks[currentNetwork]?.networkId);
       if (!paraswap) {
-        setErrorMessage(t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }));
+        setErrorMessage(
+          t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }) ||
+          "Network not supported"
+        );
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
@@ -942,10 +935,10 @@ function Swap() {
       if (error.name === "AbortError") return;
       console.error("Error fetching rate:", error.message);
       setAmountTo("");
-      setBestDex(t("price_route_not_ready"));
+      setBestDex(t("price_route_not_ready") || "Price Route Not Ready");
       setPriceRoute(null);
       setUsdEquivalent("N/A");
-      setSwapNotification({ message: error.message || t("price_route_not_ready"), isSuccess: false });
+      setSwapNotification({ message: error.message || t("price_route_not_ready") || "Price Route Not Ready", isSuccess: false });
       setTimeout(() => setSwapNotification(null), 3000);
     }
   };
@@ -962,17 +955,16 @@ function Swap() {
 
   const handleConnect = async () => {
     if (typeof window === "undefined") {
-      setErrorMessage(t("metamask_not_installed"));
+      setErrorMessage(t("metamask_not_installed") || "MetaMask Not Installed");
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
 
     try {
-      // تشخیص والت
       const ethereumProvider = await detectEthereumProvider();
       if (!ethereumProvider) {
-        setErrorMessage(t("metamask_not_installed"));
+        setErrorMessage(t("metamask_not_installed") || "MetaMask Not Installed");
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
@@ -986,7 +978,7 @@ function Swap() {
         const supportedNetworks = Object.values(networks)
           .map((n) => n.name)
           .join(", ");
-        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
+        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }) || "Network Not Supported");
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         const switched = await switchNetwork("arbitrum", ethereumProvider);
@@ -1009,7 +1001,7 @@ function Swap() {
       });
     } catch (error) {
       console.error("Connection error:", error.message);
-      setErrorMessage(t("failed_connect_wallet", { error: error.message }));
+      setErrorMessage(t("failed_connect_wallet", { error: error.message }) || `Failed to Connect Wallet: ${error.message}`);
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
@@ -1031,7 +1023,7 @@ function Swap() {
       }
     } catch (error) {
       console.error("Network switch error:", error.message);
-      setErrorMessage(t("failed_connect_wallet", { error: error.message }));
+      setErrorMessage(t("failed_connect_wallet", { error: error.message }) || `Failed to Switch Network: ${error.message}`);
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
@@ -1069,7 +1061,7 @@ function Swap() {
 
   const handleSearchToken = async () => {
     if (!ethers.utils.isAddress(searchTokenAddress)) {
-      setErrorMessage(t("invalid_contract_address"));
+      setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
@@ -1083,7 +1075,7 @@ function Swap() {
       handleTokenSelect(symbol);
     } catch (error) {
       console.error("Error fetching token:", error.message);
-      setErrorMessage(t("failed_fetch_token", { error: error.message }));
+      setErrorMessage(t("failed_fetch_token", { error: error.message }) || `Failed to Fetch Token: ${error.message}`);
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
@@ -1095,7 +1087,7 @@ function Swap() {
     if (!ethereumProvider) return;
     try {
       if (!isConnected || !address || !priceRoute || !isPriceRouteReady) {
-        setErrorMessage(t("invalid_amount"));
+        setErrorMessage(t("invalid_amount") || "Invalid Amount");
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
@@ -1112,7 +1104,10 @@ function Swap() {
 
       const paraswap = createSwapper(networks[currentNetwork]?.networkId);
       if (!paraswap) {
-        setErrorMessage(t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }));
+        setErrorMessage(
+          t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }) ||
+          "Network not supported"
+        );
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
@@ -1125,17 +1120,17 @@ function Swap() {
         destAmount: minAmount.toString(),
         priceRoute,
         userAddress: address,
-        partner: "your_partner_name", // اگه اسم partner داری، اینجا عوضش کن
+        partner: "your_partner_name",
       });
 
       if (sellTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-        setSwapNotification({ message: t("approving_token"), isSuccess: false });
+        setSwapNotification({ message: t("approving_token") || "Approving Token", isSuccess: false });
         const tokenContract = new ethers.Contract(sellTokenAddress, ERC20_ABI, signer);
         const allowance = await tokenContract.allowance(address, transactionRequest.to);
         if (allowance.lt(amountIn)) {
           const approveTx = await tokenContract.approve(transactionRequest.to, amountIn);
           await approveTx.wait();
-          setSwapNotification({ message: t("token_approved"), isSuccess: true });
+          setSwapNotification({ message: t("token_approved") || "Token Approved", isSuccess: true });
           setTimeout(() => setSwapNotification(null), 3000);
         }
       }
@@ -1150,15 +1145,15 @@ function Swap() {
 
       const receipt = await signer.sendTransaction(tx);
       await receipt.wait();
-      setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }), isSuccess: true });
+      setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }) || `Swap Successful: ${receipt.transactionHash}`, isSuccess: true });
     } catch (error) {
       console.error("Swap error:", error.message);
       if (error.code === 4001) {
-        setSwapNotification({ message: t("transaction_rejected"), isSuccess: false });
+        setSwapNotification({ message: t("transaction_rejected") || "Transaction Rejected", isSuccess: false });
       } else if (error.code === "INSUFFICIENT_FUNDS") {
-        setSwapNotification({ message: t("insufficient_funds"), isSuccess: false });
+        setSwapNotification({ message: t("insufficient_funds") || "Insufficient Funds", isSuccess: false });
       } else {
-        setSwapNotification({ message: t("swap_failed", { error: error.message }), isSuccess: false });
+        setSwapNotification({ message: t("swap_failed", { error: error.message }) || `Swap Failed: ${error.message}`, isSuccess: false });
       }
     } finally {
       setIsSwapping(false);
@@ -1223,7 +1218,7 @@ function Swap() {
           const supportedNetworks = Object.values(networks)
             .map((n) => n.name)
             .join(", ");
-          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
+          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }) || "Network Not Supported");
           setIsNotificationVisible(true);
           setTimeout(() => setIsNotificationVisible(false), 3000);
         }
@@ -1239,7 +1234,7 @@ function Swap() {
     };
 
     setupListeners();
-  }, []);
+  }, [t]);
 
   return (
     <AppContainer>
@@ -1251,7 +1246,7 @@ function Swap() {
           <HeartIcon whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
             <HeartPulse size={24} />
           </HeartIcon>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white" }}>{t("title")}</h1>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white" }}>{t("title") || "Swap"}</h1>
           <BetaTag>Beta</BetaTag>
         </HeaderTitle>
         <div style={{ display: "flex", gap: "1rem" }}>
@@ -1282,7 +1277,7 @@ function Swap() {
             </WalletContainer>
           ) : (
             <ConnectButton whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleConnect}>
-              {t("connect_wallet")}
+              {t("connect_wallet") || "Connect Wallet"}
             </ConnectButton>
           )}
         </div>
@@ -1293,7 +1288,7 @@ function Swap() {
       <MainContent>
         <Card>
           <CardContent>
-            <Subtitle>{t("swap_tokens")}</Subtitle>
+            <Subtitle>{t("swap_tokens") || "Swap Tokens"}</Subtitle>
             <InputContainer>
               <Input
                 type="number"
@@ -1315,7 +1310,7 @@ function Swap() {
                 {isConnected && (
                   <BalanceContainer onClick={() => handleMaxClick(balanceFrom)}>
                     <span>{Number(balanceFrom).toFixed(4)}</span>
-                    <MaxButton>{t("max")}</MaxButton>
+                    <MaxButton>{t("max") || "Max"}</MaxButton>
                   </BalanceContainer>
                 )}
               </TokenButtonContainer>
@@ -1349,13 +1344,13 @@ function Swap() {
                 type="text"
                 value={searchTokenAddress}
                 onChange={(e) => setSearchTokenAddress(e.target.value)}
-                placeholder={t("search_token")}
+                placeholder={t("search_token") || "Search Token by Address"}
               />
               <TokenButton onClick={handleSearchToken}>Search</TokenButton>
             </InputContainer>
             <SettingsContainer>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("slippage")}</label>
+                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("slippage") || "Slippage (%)"}</label>
                 <SettingsInput
                   type="number"
                   value={slippage}
@@ -1366,7 +1361,7 @@ function Swap() {
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("deadline")}</label>
+                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("deadline") || "Deadline (min)"}</label>
                 <SettingsInput
                   type="number"
                   value={deadline}
@@ -1377,9 +1372,9 @@ function Swap() {
               </div>
             </SettingsContainer>
             <RateInfo>
-              {t("best_rate_from")}: {bestDex}
+              {t("best_rate_from") || "Best rate from"}: {bestDex}
               <br />
-              {t("estimated_gas")}: {gasEstimate.gwei} Gwei (~${gasEstimate.usd} USD)
+              {t("estimated_gas") || "Estimated Gas"}: {gasEstimate.gwei} Gwei (~${gasEstimate.usd} USD)
             </RateInfo>
             <SwapButton
               whileHover={{ scale: 1.02 }}
@@ -1387,7 +1382,7 @@ function Swap() {
               onClick={handleSwap}
               disabled={!isConnected || !isPriceRouteReady || isSwapping}
             >
-              {isSwapping ? t("swapping") : t("swap_button", { from: tokenFrom, to: tokenTo })}
+              {isSwapping ? (t("swapping") || "Swapping...") : t("swap_button", { from: tokenFrom, to: tokenTo }) || `Swap ${tokenFrom} to ${tokenTo}`}
             </SwapButton>
           </CardContent>
         </Card>
@@ -1406,7 +1401,7 @@ function Swap() {
             exit={{ scale: 0 }}
           >
             <ModalHeader>
-              <ModalTitle>{t("select_token")}</ModalTitle>
+              <ModalTitle>{t("select_token") || "Select a Token"}</ModalTitle>
               <CloseButton onClick={() => setIsModalOpen(false)}>×</CloseButton>
             </ModalHeader>
             <TokenGrid>
@@ -1441,7 +1436,7 @@ function Swap() {
       <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
       <Footer>
         <FooterText>
-          {t("powered_by")} <FooterLink href="https://paraswap.io/" target="_blank">Paraswap</FooterLink>
+          {t("powered_by") || "Powered by"} <FooterLink href="https://paraswap.io/" target="_blank">Paraswap</FooterLink>
         </FooterText>
       </Footer>
     </AppContainer>
