@@ -904,7 +904,7 @@ function Swap() {
         amount: sellAmountFormatted,
         side: SwapSide.SELL,
         userAddress: address,
-        slippage: Number(slippage),
+        slippage: Number(slippage) || 1,
       });
 
       if (!priceRoute || !priceRoute.destAmount) {
@@ -994,11 +994,17 @@ function Swap() {
       setAddress(userAddress);
       setIsConnected(true);
       setIsInitialLoad(false);
-      await fetch("/api/save-wallet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: userAddress }),
-      });
+
+      // اطمینان از وجود API
+      try {
+        await fetch("/api/save-wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: userAddress }),
+        });
+      } catch (apiError) {
+        console.error("Failed to save wallet:", apiError.message);
+      }
     } catch (error) {
       console.error("Connection error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }) || `Failed to Connect Wallet: ${error.message}`);
@@ -1068,6 +1074,12 @@ function Swap() {
     }
 
     try {
+      if (!provider) {
+        setErrorMessage("Provider not initialized");
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
       const tokenContract = new ethers.Contract(searchTokenAddress, ERC20_ABI, provider);
       const symbol = await tokenContract.symbol();
       tokenAddresses[currentNetwork][symbol] = searchTokenAddress;
@@ -1168,8 +1180,8 @@ function Swap() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isConnected && address && provider) {
-      fetchTokenBalance(tokenFrom, address).then(setBalanceFrom);
-      fetchTokenBalance(tokenTo, address).then(setBalanceTo);
+      fetchTokenBalance(tokenFrom, address).then((balance) => setBalanceFrom(balance || "0"));
+      fetchTokenBalance(tokenTo, address).then((balance) => setBalanceTo(balance || "0"));
     }
   }, [isConnected, address, tokenFrom, tokenTo, currentNetwork, provider]);
 
@@ -1252,7 +1264,7 @@ function Swap() {
         <div style={{ display: "flex", gap: "1rem" }}>
           <NetworkSelector>
             <NetworkButton onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}>
-              {networks[currentNetwork].name} <ChevronDown size={16} />
+              {networks[currentNetwork]?.name || "Select Network"} <ChevronDown size={16} />
             </NetworkButton>
             {isNetworkDropdownOpen && (
               <NetworkDropdown>
@@ -1264,7 +1276,7 @@ function Swap() {
               </NetworkDropdown>
             )}
           </NetworkSelector>
-          <LanguageSelector onChange={handleLanguageChange} value={i18n.language}>
+          <LanguageSelector onChange={handleLanguageChange} value={i18n.language || "en"}>
             <option value="en">English</option>
             <option value="fa">فارسی</option>
           </LanguageSelector>
@@ -1272,7 +1284,7 @@ function Swap() {
             <WalletContainer>
               <Wallet size={20} color="#3b82f6" />
               <span style={{ color: "white", fontSize: "0.875rem" }}>
-                {address.slice(0, 6)}...{address.slice(-4)}
+                {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connected"}
               </span>
             </WalletContainer>
           ) : (
