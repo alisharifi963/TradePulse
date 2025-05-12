@@ -7,7 +7,7 @@ import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
 import { constructSimpleSDK } from "@paraswap/sdk";
 import { SwapSide } from "@paraswap/core";
-import axios from "axios"; // اضافه کردن axios
+import axios from "axios";
 
 // استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
@@ -636,14 +636,14 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     <motion.div
       style={{
         position: "fixed",
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: "flex";
-        justifyContent: "center";
-        alignItems: "center";
-        zIndex: 101;
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 101,
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -652,18 +652,18 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     >
       <motion.div
         style={{
-          background;
-          color: "white";
-          padding: "1rem 2rem";
-          borderRadius: "0.5rem";
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)";
-          display: "flex";
-          flexDirection: "column";
-          alignItems: "center";
-          gap: "0.5rem";
-          maxWidth: "400px";
-          textAlign: "center";
-          wordBreak: "break-word";
+          background,
+          color: "white",
+          padding: "1rem 2rem",
+          borderRadius: "0.5rem",
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5rem",
+          maxWidth: "400px",
+          textAlign: "center",
+          wordBreak: "break-word",
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -677,13 +677,13 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         <button
           onClick={onClose}
           style={{
-            background: "rgba(255, 255, 255, 0.2)";
-            color: "white";
-            border: "none";
-            padding: "0.25rem 0.5rem";
-            borderRadius: "0.25rem";
-            cursor: "pointer";
-            marginTop: "0.5rem";
+            background: "rgba(255, 255, 255, 0.2)",
+            color: "white",
+            border: "none",
+            padding: "0.25rem 0.5rem",
+            borderRadius: "0.25rem",
+            cursor: "pointer",
+            marginTop: "0.5rem",
           }}
         >
           OK
@@ -697,15 +697,11 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 const detectEthereumProvider = async () => {
   if (typeof window === "undefined") return null;
 
-  // بررسی وجود window.ethereum
   if (!window.ethereum) {
     return null;
   }
 
-  // تشخیص اینکه چند والت وجود داره
   const providers = window.ethereum?.providers || [window.ethereum];
-  
-  // اولویت دادن به MetaMask
   const metaMaskProvider = providers.find((p) => p.isMetaMask) || providers[0];
   if (!metaMaskProvider) {
     return null;
@@ -761,7 +757,7 @@ const createSwapper = (networkId) => {
     const paraswap = constructSimpleSDK({
       chainId: networkId,
       apiURL: networks[networkKey].apiUrl,
-      fetcher: axios, // اضافه کردن axios به عنوان fetcher
+      fetcher: axios, // استفاده از axios
     });
     return paraswap;
   } catch (error) {
