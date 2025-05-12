@@ -3,8 +3,8 @@ import { ChevronDown, X, HeartPulse, ArrowLeftRight, Wallet, CheckCircle, AlertT
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
-import { debounce } from 'lodash';
-import { useTranslation } from 'react-i18next';
+import { debounce } from "lodash";
+import { useTranslation } from "react-i18next";
 import { constructSimpleSDK } from "@paraswap/sdk";
 import { SwapSide } from "@paraswap/core";
 
@@ -50,7 +50,7 @@ const networks = {
   ethereum: {
     chainId: 1,
     name: "Ethereum Mainnet",
-    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY || ""}`,
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
@@ -304,7 +304,7 @@ const TrustSticker = styled.div`
 `;
 
 const TrustText = styled.p`
-  font-family: 'Caveat', cursive;
+  font-family: "Caveat", cursive;
   font-size: 1.25rem;
   color: #374151;
   margin: 0;
@@ -596,14 +596,24 @@ const LanguageSelector = styled.select`
 const SwapAnimation = ({ isSwapping, hasError }) => {
   const heartVariants = {
     initial: { scale: 1 },
-    animate: hasError ? { scale: 1 } : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
+    animate: hasError
+      ? { scale: 1 }
+      : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
   };
 
   return isSwapping ? (
     <AnimationOverlay initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
       <motion.div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <motion.div
-          style={{ width: "80px", height: "80px", background: "linear-gradient(to right, #10b981, #3b82f6)", borderRadius: "50%", display: "flex", justifyContent: "center", alignItems: "center" }}
+          style={{
+            width: "80px",
+            height: "80px",
+            background: "linear-gradient(to right, #10b981, #3b82f6)",
+            borderRadius: "50%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
           variants={heartVariants}
           initial="initial"
           animate="animate"
@@ -623,14 +633,37 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 
   return (
     <motion.div
-      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", zIndex: 101 }}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 101,
+      }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
       <motion.div
-        style={{ background, color: "white", padding: "1rem 2rem", borderRadius: "0.5rem", boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", maxWidth: "400px", textAlign: "center", wordBreak: "break-word" }}
+        style={{
+          background,
+          color: "white",
+          padding: "1rem 2rem",
+          borderRadius: "0.5rem",
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.5rem",
+          maxWidth: "400px",
+          textAlign: "center",
+          wordBreak: "break-word",
+        }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
@@ -640,7 +673,18 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
           <span>{message}</span>
         </div>
-        <button onClick={onClose} style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}>
+        <button
+          onClick={onClose}
+          style={{
+            background: "rgba(255, 255, 255, 0.2)",
+            color: "white",
+            border: "none",
+            padding: "0.25rem 0.5rem",
+            borderRadius: "0.25rem",
+            cursor: "pointer",
+            marginTop: "0.5rem",
+          }}
+        >
           OK
         </button>
       </motion.div>
@@ -650,6 +694,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 
 // توابع کمکی
 const switchNetwork = async (networkKey, provider) => {
+  if (typeof window === "undefined" || !provider) return;
   const network = networks[networkKey];
   try {
     await provider.request({
@@ -660,13 +705,15 @@ const switchNetwork = async (networkKey, provider) => {
     if (error.code === 4902) {
       await provider.request({
         method: "wallet_addEthereumChain",
-        params: [{
-          chainId: `0x${network.chainId.toString(16)}`,
-          chainName: network.name,
-          rpcUrls: [network.rpcUrl],
-          nativeCurrency: network.nativeCurrency,
-          blockExplorerUrls: [network.explorerUrl],
-        }],
+        params: [
+          {
+            chainId: `0x${network.chainId.toString(16)}`,
+            chainName: network.name,
+            rpcUrls: [network.rpcUrl],
+            nativeCurrency: network.nativeCurrency,
+            blockExplorerUrls: [network.explorerUrl],
+          },
+        ],
       });
     } else {
       throw error;
@@ -677,12 +724,13 @@ const switchNetwork = async (networkKey, provider) => {
 const createSwapper = (networkId) => {
   const paraswap = constructSimpleSDK({
     chainId: networkId,
-    apiURL: networks[Object.keys(networks).find(key => networks[key].networkId === networkId)].apiUrl,
+    apiURL: networks[Object.keys(networks).find((key) => networks[key].networkId === networkId)].apiUrl,
   });
   return paraswap;
 };
 
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
+  if (typeof window === "undefined") return 0; // جلوگیری از اجرا در زمان SSR
   try {
     const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
     if (!tokenAddress) {
@@ -704,7 +752,7 @@ const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
     });
 
     if (!priceRoute || !priceRoute.destAmount) {
-      throw new Error("Invalid response from Velora API");
+      throw new Error("Invalid response from Paraswap API");
     }
 
     return Number(priceRoute.destAmount) / 1e6; // USDC has 6 decimals
@@ -746,7 +794,7 @@ function Swap() {
   const [searchTokenAddress, setSearchTokenAddress] = useState("");
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-    if (!userAddress || !provider || !tokenSymbol) {
+    if (typeof window === "undefined" || !userAddress || !provider || !tokenSymbol) {
       console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
       return "0";
     }
@@ -774,6 +822,7 @@ function Swap() {
   };
 
   const fetchBestRate = async (signal) => {
+    if (typeof window === "undefined") return; // جلوگیری از اجرا در زمان SSR
     try {
       if (!isConnected || !address) {
         setAmountTo("");
@@ -821,7 +870,7 @@ function Swap() {
       const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
       const formattedAmountTo = ethers.utils.formatUnits(priceRoute.destAmount, decimalsTo);
       setAmountTo(formattedAmountTo);
-      setBestDex("Velora");
+      setBestDex("Paraswap");
       setIsPriceRouteReady(true);
 
       const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
@@ -860,37 +909,39 @@ function Swap() {
   };
 
   const handleConnect = async () => {
+    if (typeof window === "undefined" || !window.ethereum) {
+      setErrorMessage(t("metamask_not_installed"));
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
+      return;
+    }
     try {
-      if (window.ethereum) {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        const network = await provider.getNetwork();
-        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId));
-        if (!networkKey) {
-          const supportedNetworks = Object.values(networks).map(n => n.name).join(", ");
-          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
-          setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 3000);
-          await switchNetwork("arbitrum", window.ethereum);
-          return;
-        }
-        const signer = await provider.getSigner();
-        const userAddress = await signer.getAddress();
-        setProvider(provider);
-        setSigner(signer);
-        setAddress(userAddress);
-        setIsConnected(true);
-        await fetch('/api/save-wallet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: userAddress }),
-        });
-        setCurrentNetwork(networkKey);
-      } else {
-        setErrorMessage(t("metamask_not_installed"));
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const network = await provider.getNetwork();
+      const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(network.chainId));
+      if (!networkKey) {
+        const supportedNetworks = Object.values(networks)
+          .map((n) => n.name)
+          .join(", ");
+        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
+        await switchNetwork("arbitrum", window.ethereum);
+        return;
       }
+      const signer = provider.getSigner();
+      const userAddress = await signer.getAddress();
+      setProvider(provider);
+      setSigner(signer);
+      setAddress(userAddress);
+      setIsConnected(true);
+      await fetch("/api/save-wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: userAddress }),
+      });
+      setCurrentNetwork(networkKey);
     } catch (error) {
       console.error("Connection error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }));
@@ -900,6 +951,7 @@ function Swap() {
   };
 
   const handleNetworkChange = async (networkKey) => {
+    if (typeof window === "undefined" || !window.ethereum) return;
     try {
       await switchNetwork(networkKey, window.ethereum);
       setCurrentNetwork(networkKey);
@@ -967,6 +1019,7 @@ function Swap() {
   };
 
   const handleSwap = async () => {
+    if (typeof window === "undefined" || !window.ethereum) return;
     try {
       if (!isConnected || !address || !priceRoute || !isPriceRouteReady) {
         setErrorMessage(t("invalid_amount"));
@@ -979,7 +1032,8 @@ function Swap() {
       const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
       const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
       const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
-      const minAmount = ethers.utils.parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18)
+      const minAmount = ethers.utils
+        .parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18)
         .mul(100 - Number(slippage))
         .div(100);
 
@@ -1037,13 +1091,15 @@ function Swap() {
   };
 
   useEffect(() => {
-    if (isConnected && address) {
+    if (typeof window === "undefined") return;
+    if (isConnected && address && provider) {
       fetchTokenBalance(tokenFrom, address).then(setBalanceFrom);
       fetchTokenBalance(tokenTo, address).then(setBalanceTo);
     }
   }, [isConnected, address, tokenFrom, tokenTo, currentNetwork, provider]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (amountFrom && Number(amountFrom) > 0 && isConnected) {
       debouncedFetchBestRate(abortController.signal);
     }
@@ -1051,33 +1107,40 @@ function Swap() {
   }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage]);
 
   useEffect(() => {
-    if (window.ethereum) {
-      window.ethereum.on("accountsChanged", (accounts) => {
-        if (accounts.length > 0) {
-          setAddress(accounts[0]);
-          setIsConnected(true);
-        } else {
-          setIsConnected(false);
-          setAddress("");
-          setProvider(null);
-          setSigner(null);
-        }
-      });
+    if (typeof window === "undefined" || !window.ethereum) return;
+    const handleAccountsChanged = (accounts) => {
+      if (accounts.length > 0) {
+        setAddress(accounts[0]);
+        setIsConnected(true);
+      } else {
+        setIsConnected(false);
+        setAddress("");
+        setProvider(null);
+        setSigner(null);
+      }
+    };
 
-      window.ethereum.on("chainChanged", async (chainId) => {
-        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(chainId));
-        if (networkKey) {
-          setCurrentNetwork(networkKey);
-          setAmountTo("");
-          setBestDex("Fetching...");
-        } else {
-          setIsConnected(false);
-          setAddress("");
-          setProvider(null);
-          setSigner(null);
-        }
-      });
-    }
+    const handleChainChanged = async (chainId) => {
+      const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(chainId));
+      if (networkKey) {
+        setCurrentNetwork(networkKey);
+        setAmountTo("");
+        setBestDex("Fetching...");
+      } else {
+        setIsConnected(false);
+        setAddress("");
+        setProvider(null);
+        setSigner(null);
+      }
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
+
+    return () => {
+      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+      window.ethereum.removeListener("chainChanged", handleChainChanged);
+    };
   }, []);
 
   return (
@@ -1143,7 +1206,12 @@ function Swap() {
                 step="0.001"
               />
               <TokenButtonContainer>
-                <TokenButton onClick={() => { setIsSelectingFrom(true); setIsModalOpen(true); }}>
+                <TokenButton
+                  onClick={() => {
+                    setIsSelectingFrom(true);
+                    setIsModalOpen(true);
+                  }}
+                >
                   {tokenFrom} <ChevronDown size={16} />
                 </TokenButton>
                 {isConnected && (
@@ -1156,23 +1224,19 @@ function Swap() {
             </InputContainer>
             <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
             <SwapTokensContainer>
-              <SwapTokensButton
-                onClick={handleSwapTokens}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
+              <SwapTokensButton onClick={handleSwapTokens} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                 <ArrowLeftRight size={20} />
               </SwapTokensButton>
             </SwapTokensContainer>
             <InputContainer>
-              <Input
-                type="number"
-                value={amountTo}
-                placeholder="0.0"
-                readOnly
-              />
+              <Input type="number" value={amountTo} placeholder="0.0" readOnly />
               <TokenButtonContainer>
-                <TokenButton onClick={() => { setIsSelectingFrom(false); setIsModalOpen(true); }}>
+                <TokenButton
+                  onClick={() => {
+                    setIsSelectingFrom(false);
+                    setIsModalOpen(true);
+                  }}
+                >
                   {tokenTo} <ChevronDown size={16} />
                 </TokenButton>
                 {isConnected && (
@@ -1189,9 +1253,7 @@ function Swap() {
                 onChange={(e) => setSearchTokenAddress(e.target.value)}
                 placeholder={t("search_token")}
               />
-              <TokenButton onClick={handleSearchToken}>
-                Search
-              </TokenButton>
+              <TokenButton onClick={handleSearchToken}>Search</TokenButton>
             </InputContainer>
             <SettingsContainer>
               <div style={{ flex: 1 }}>
@@ -1265,11 +1327,7 @@ function Swap() {
         </ModalOverlay>
       )}
       {isNotificationVisible && (
-        <Notification
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
+        <Notification initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <AlertTriangle size={20} />
           <span>{errorMessage}</span>
           <CloseButton onClick={() => setIsNotificationVisible(false)}>×</CloseButton>
@@ -1285,7 +1343,7 @@ function Swap() {
       <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
       <Footer>
         <FooterText>
-          {t("powered_by")} <FooterLink href="https://paraswap.io/" target="_blank">Velora</FooterLink>
+          {t("powered_by")} <FooterLink href="https://paraswap.io/" target="_blank">Paraswap</FooterLink>
         </FooterText>
       </Footer>
     </AppContainer>
