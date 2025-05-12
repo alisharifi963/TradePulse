@@ -694,61 +694,84 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 
 // توابع کمکی
 const switchNetwork = async (networkKey, provider) => {
-  if (typeof window === "undefined" || !provider) return;
+  if (typeof window === "undefined" || !provider) return false;
   const network = networks[networkKey];
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: `0x${network.chainId.toString(16)}` }],
     });
+    return true;
   } catch (error) {
     if (error.code === 4902) {
-      await provider.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: `0x${network.chainId.toString(16)}`,
-            chainName: network.name,
-            rpcUrls: [network.rpcUrl],
-            nativeCurrency: network.nativeCurrency,
-            blockExplorerUrls: [network.explorerUrl],
-          },
-        ],
-      });
-    } else {
-      throw error;
+      try {
+        await provider.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: `0x${network.chainId.toString(16)}`,
+              chainName: network.name,
+              rpcUrls: [network.rpcUrl],
+              nativeCurrency: network.nativeCurrency,
+              blockExplorerUrls: [network.explorerUrl],
+            },
+          ],
+        });
+        return true;
+      } catch (addError) {
+        throw addError;
+      }
     }
+    throw error;
   }
 };
 
 const createSwapper = (networkId) => {
-  const paraswap = constructSimpleSDK({
-    chainId: networkId,
-    apiURL: networks[Object.keys(networks).find((key) => networks[key].networkId === networkId)].apiUrl,
-  });
-  return paraswap;
+  if (!networkId) {
+    console.error("Network ID is undefined");
+    return null;
+  }
+  const networkKey = Object.keys(networks).find((key) => networks[key].networkId === networkId);
+  if (!networkKey) {
+    console.error(`Network ID ${networkId} is not supported`);
+    return null;
+  }
+  try {
+    const paraswap = constructSimpleSDK({
+      chainId: networkId,
+      apiURL: networks[networkKey].apiUrl,
+    });
+    return paraswap;
+  } catch (error) {
+    console.error("Failed to initialize Paraswap SDK:", error.message);
+    return null;
+  }
 };
 
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
   if (typeof window === "undefined") return 0; // جلوگیری از اجرا در زمان SSR
   try {
-    const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
+    const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
     if (!tokenAddress) {
       console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
       return 0;
     }
 
-    const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-    const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
+    const usdcAddress = tokenAddresses[currentNetwork]?.["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
     const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
 
-    const paraswap = createSwapper(networks[currentNetwork].networkId);
-    const priceRoute = await paraswap.Swap.getRate({
+    const paraswap = createSwapper(networks[currentNetwork]?.networkId);
+    if (!paraswap) {
+      console.warn(`Paraswap SDK could not be initialized for network ${currentNetwork}`);
+      return 0;
+    }
+
+    const priceRoute = await paraswap.swap.getRate({
       srcToken: tokenAddress,
       destToken: usdcAddress,
       amount: amountInUnits,
       side: SwapSide.SELL,
-      version: "6.2",
     });
 
     if (!priceRoute || !priceRoute.destAmount) {
@@ -792,6 +815,7 @@ function Swap() {
   const [deadline, setDeadline] = useState("20");
   const [gasEstimate, setGasEstimate] = useState({ gwei: "0", usd: "N/A" });
   const [searchTokenAddress, setSearchTokenAddress] = useState("");
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
     if (typeof window === "undefined" || !userAddress || !provider || !tokenSymbol) {
@@ -799,7 +823,7 @@ function Swap() {
       return "0";
     }
     try {
-      const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
+      const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
       if (!tokenAddress) {
         console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
         return "0";
@@ -813,7 +837,7 @@ function Swap() {
         balance = await tokenContract.balanceOf(userAddress);
       }
 
-      const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
+      const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
       return ethers.utils.formatUnits(balance, decimals);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error.message);
@@ -822,9 +846,9 @@ function Swap() {
   };
 
   const fetchBestRate = async (signal) => {
-    if (typeof window === "undefined") return; // جلوگیری از اجرا در زمان SSR
+    if (typeof window === "undefined" || isInitialLoad) return; // جلوگیری از اجرا در زمان SSR یا لود اولیه
     try {
-      if (!isConnected || !address) {
+      if (!isConnected || !address || !provider) {
         setAmountTo("");
         setBestDex(t("invalid_amount"));
         setPriceRoute(null);
@@ -834,8 +858,8 @@ function Swap() {
         return;
       }
 
-      const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-      const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
+      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
       if (!sellTokenAddress || !buyTokenAddress) {
         console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
         setErrorMessage(t("invalid_contract_address"));
@@ -845,7 +869,7 @@ function Swap() {
       }
 
       setIsPriceRouteReady(false);
-      const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
+      const decimalsFrom = tokenDecimals[currentNetwork]?.[tokenFrom] || 18;
       const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
@@ -855,19 +879,29 @@ function Swap() {
         return;
       }
 
-      const paraswap = createSwapper(networks[currentNetwork].networkId);
-      const priceRoute = await paraswap.Swap.getRate({
+      const paraswap = createSwapper(networks[currentNetwork]?.networkId);
+      if (!paraswap) {
+        setErrorMessage(t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }));
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
+
+      const priceRoute = await paraswap.swap.getRate({
         srcToken: sellTokenAddress,
         destToken: buyTokenAddress,
         amount: sellAmountFormatted,
         side: SwapSide.SELL,
-        version: "6.2",
         userAddress: address,
         slippage: Number(slippage),
       });
 
+      if (!priceRoute || !priceRoute.destAmount) {
+        throw new Error("No routes found with enough liquidity");
+      }
+
       setPriceRoute(priceRoute);
-      const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
+      const decimalsTo = tokenDecimals[currentNetwork]?.[tokenTo] || 18;
       const formattedAmountTo = ethers.utils.formatUnits(priceRoute.destAmount, decimalsTo);
       setAmountTo(formattedAmountTo);
       setBestDex("Paraswap");
@@ -893,7 +927,7 @@ function Swap() {
       setBestDex(t("price_route_not_ready"));
       setPriceRoute(null);
       setUsdEquivalent("N/A");
-      setSwapNotification({ message: t("price_route_not_ready"), isSuccess: false });
+      setSwapNotification({ message: error.message || t("price_route_not_ready"), isSuccess: false });
       setTimeout(() => setSwapNotification(null), 3000);
     }
   };
@@ -916,7 +950,7 @@ function Swap() {
       return;
     }
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
       await provider.send("eth_requestAccounts", []);
       const network = await provider.getNetwork();
       const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(network.chainId));
@@ -927,8 +961,11 @@ function Swap() {
         setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
-        await switchNetwork("arbitrum", window.ethereum);
-        return;
+        const switched = await switchNetwork("arbitrum", window.ethereum);
+        if (!switched) return;
+        setCurrentNetwork("arbitrum");
+      } else {
+        setCurrentNetwork(networkKey);
       }
       const signer = provider.getSigner();
       const userAddress = await signer.getAddress();
@@ -936,12 +973,12 @@ function Swap() {
       setSigner(signer);
       setAddress(userAddress);
       setIsConnected(true);
+      setIsInitialLoad(false);
       await fetch("/api/save-wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: userAddress }),
       });
-      setCurrentNetwork(networkKey);
     } catch (error) {
       console.error("Connection error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }));
@@ -953,11 +990,15 @@ function Swap() {
   const handleNetworkChange = async (networkKey) => {
     if (typeof window === "undefined" || !window.ethereum) return;
     try {
-      await switchNetwork(networkKey, window.ethereum);
-      setCurrentNetwork(networkKey);
-      setIsNetworkDropdownOpen(false);
-      setAmountTo("");
-      setBestDex("Fetching...");
+      const switched = await switchNetwork(networkKey, window.ethereum);
+      if (switched) {
+        setCurrentNetwork(networkKey);
+        setIsNetworkDropdownOpen(false);
+        setAmountTo("");
+        setBestDex("Fetching...");
+        setTokenFrom(networkKey === "bnb" ? "BNB" : "ETH");
+        setTokenTo("USDC");
+      }
     } catch (error) {
       console.error("Network switch error:", error.message);
       setErrorMessage(t("failed_connect_wallet", { error: error.message }));
@@ -1029,16 +1070,23 @@ function Swap() {
       }
 
       setIsSwapping(true);
-      const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
-      const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
-      const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
+      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
+      const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork]?.[tokenFrom] || 18);
       const minAmount = ethers.utils
-        .parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18)
+        .parseUnits(amountTo, tokenDecimals[currentNetwork]?.[tokenTo] || 18)
         .mul(100 - Number(slippage))
         .div(100);
 
-      const paraswap = createSwapper(networks[currentNetwork].networkId);
-      const transactionRequest = await paraswap.Swap.buildTx({
+      const paraswap = createSwapper(networks[currentNetwork]?.networkId);
+      if (!paraswap) {
+        setErrorMessage(t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }));
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
+
+      const transactionRequest = await paraswap.swap.buildTx({
         srcToken: sellTokenAddress,
         destToken: buyTokenAddress,
         srcAmount: amountIn.toString(),
@@ -1099,12 +1147,12 @@ function Swap() {
   }, [isConnected, address, tokenFrom, tokenTo, currentNetwork, provider]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (amountFrom && Number(amountFrom) > 0 && isConnected) {
+    if (typeof window === "undefined" || isInitialLoad) return;
+    if (amountFrom && Number(amountFrom) > 0 && isConnected && provider && address) {
       debouncedFetchBestRate(abortController.signal);
     }
     return () => abortController.abort();
-  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage]);
+  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage, provider]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.ethereum) return;
@@ -1112,11 +1160,13 @@ function Swap() {
       if (accounts.length > 0) {
         setAddress(accounts[0]);
         setIsConnected(true);
+        setIsInitialLoad(false);
       } else {
         setIsConnected(false);
         setAddress("");
         setProvider(null);
         setSigner(null);
+        setIsInitialLoad(true);
       }
     };
 
@@ -1126,11 +1176,20 @@ function Swap() {
         setCurrentNetwork(networkKey);
         setAmountTo("");
         setBestDex("Fetching...");
+        setTokenFrom(networkKey === "bnb" ? "BNB" : "ETH");
+        setTokenTo("USDC");
       } else {
         setIsConnected(false);
         setAddress("");
         setProvider(null);
         setSigner(null);
+        setIsInitialLoad(true);
+        const supportedNetworks = Object.values(networks)
+          .map((n) => n.name)
+          .join(", ");
+        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     };
 
@@ -1312,7 +1371,7 @@ function Swap() {
               <CloseButton onClick={() => setIsModalOpen(false)}>×</CloseButton>
             </ModalHeader>
             <TokenGrid>
-              {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
+              {Object.keys(tokenAddresses[currentNetwork] || {}).map((token) => (
                 <TokenOption
                   key={token}
                   onClick={() => handleTokenSelect(token)}
