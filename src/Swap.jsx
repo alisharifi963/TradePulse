@@ -7,6 +7,7 @@ import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
 import { constructSimpleSDK } from "@paraswap/sdk";
 import { SwapSide } from "@paraswap/core";
+import axios from "axios"; // اضافه کردن axios
 
 // استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
@@ -635,14 +636,14 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     <motion.div
       style={{
         position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 101,
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: "flex";
+        justifyContent: "center";
+        alignItems: "center";
+        zIndex: 101;
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -651,18 +652,18 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
     >
       <motion.div
         style={{
-          background,
-          color: "white",
-          padding: "1rem 2rem",
-          borderRadius: "0.5rem",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.5rem",
-          maxWidth: "400px",
-          textAlign: "center",
-          wordBreak: "break-word",
+          background;
+          color: "white";
+          padding: "1rem 2rem";
+          borderRadius: "0.5rem";
+          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)";
+          display: "flex";
+          flexDirection: "column";
+          alignItems: "center";
+          gap: "0.5rem";
+          maxWidth: "400px";
+          textAlign: "center";
+          wordBreak: "break-word";
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -676,13 +677,13 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
         <button
           onClick={onClose}
           style={{
-            background: "rgba(255, 255, 255, 0.2)",
-            color: "white",
-            border: "none",
-            padding: "0.25rem 0.5rem",
-            borderRadius: "0.25rem",
-            cursor: "pointer",
-            marginTop: "0.5rem",
+            background: "rgba(255, 255, 255, 0.2)";
+            color: "white";
+            border: "none";
+            padding: "0.25rem 0.5rem";
+            borderRadius: "0.25rem";
+            cursor: "pointer";
+            marginTop: "0.5rem";
           }}
         >
           OK
@@ -693,6 +694,26 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 };
 
 // توابع کمکی
+const detectEthereumProvider = async () => {
+  if (typeof window === "undefined") return null;
+
+  // بررسی وجود window.ethereum
+  if (!window.ethereum) {
+    return null;
+  }
+
+  // تشخیص اینکه چند والت وجود داره
+  const providers = window.ethereum?.providers || [window.ethereum];
+  
+  // اولویت دادن به MetaMask
+  const metaMaskProvider = providers.find((p) => p.isMetaMask) || providers[0];
+  if (!metaMaskProvider) {
+    return null;
+  }
+
+  return metaMaskProvider;
+};
+
 const switchNetwork = async (networkKey, provider) => {
   if (typeof window === "undefined" || !provider) return false;
   const network = networks[networkKey];
@@ -740,6 +761,7 @@ const createSwapper = (networkId) => {
     const paraswap = constructSimpleSDK({
       chainId: networkId,
       apiURL: networks[networkKey].apiUrl,
+      fetcher: axios, // اضافه کردن axios به عنوان fetcher
     });
     return paraswap;
   } catch (error) {
@@ -943,14 +965,24 @@ function Swap() {
   };
 
   const handleConnect = async () => {
-    if (typeof window === "undefined" || !window.ethereum) {
+    if (typeof window === "undefined") {
       setErrorMessage(t("metamask_not_installed"));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
+
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+      // تشخیص والت
+      const ethereumProvider = await detectEthereumProvider();
+      if (!ethereumProvider) {
+        setErrorMessage(t("metamask_not_installed"));
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
+
+      const provider = new ethers.providers.Web3Provider(ethereumProvider, "any");
       await provider.send("eth_requestAccounts", []);
       const network = await provider.getNetwork();
       const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(network.chainId));
@@ -961,7 +993,7 @@ function Swap() {
         setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
-        const switched = await switchNetwork("arbitrum", window.ethereum);
+        const switched = await switchNetwork("arbitrum", ethereumProvider);
         if (!switched) return;
         setCurrentNetwork("arbitrum");
       } else {
@@ -988,9 +1020,11 @@ function Swap() {
   };
 
   const handleNetworkChange = async (networkKey) => {
-    if (typeof window === "undefined" || !window.ethereum) return;
+    if (typeof window === "undefined") return;
+    const ethereumProvider = await detectEthereumProvider();
+    if (!ethereumProvider) return;
     try {
-      const switched = await switchNetwork(networkKey, window.ethereum);
+      const switched = await switchNetwork(networkKey, ethereumProvider);
       if (switched) {
         setCurrentNetwork(networkKey);
         setIsNetworkDropdownOpen(false);
@@ -1060,7 +1094,9 @@ function Swap() {
   };
 
   const handleSwap = async () => {
-    if (typeof window === "undefined" || !window.ethereum) return;
+    if (typeof window === "undefined") return;
+    const ethereumProvider = await detectEthereumProvider();
+    if (!ethereumProvider) return;
     try {
       if (!isConnected || !address || !priceRoute || !isPriceRouteReady) {
         setErrorMessage(t("invalid_amount"));
@@ -1155,51 +1191,58 @@ function Swap() {
   }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage, provider]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.ethereum) return;
-    const handleAccountsChanged = (accounts) => {
-      if (accounts.length > 0) {
-        setAddress(accounts[0]);
-        setIsConnected(true);
-        setIsInitialLoad(false);
-      } else {
-        setIsConnected(false);
-        setAddress("");
-        setProvider(null);
-        setSigner(null);
-        setIsInitialLoad(true);
-      }
+    if (typeof window === "undefined") return;
+    const setupListeners = async () => {
+      const ethereumProvider = await detectEthereumProvider();
+      if (!ethereumProvider) return;
+
+      const handleAccountsChanged = (accounts) => {
+        if (accounts.length > 0) {
+          setAddress(accounts[0]);
+          setIsConnected(true);
+          setIsInitialLoad(false);
+        } else {
+          setIsConnected(false);
+          setAddress("");
+          setProvider(null);
+          setSigner(null);
+          setIsInitialLoad(true);
+        }
+      };
+
+      const handleChainChanged = async (chainId) => {
+        const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(chainId));
+        if (networkKey) {
+          setCurrentNetwork(networkKey);
+          setAmountTo("");
+          setBestDex("Fetching...");
+          setTokenFrom(networkKey === "bnb" ? "BNB" : "ETH");
+          setTokenTo("USDC");
+        } else {
+          setIsConnected(false);
+          setAddress("");
+          setProvider(null);
+          setSigner(null);
+          setIsInitialLoad(true);
+          const supportedNetworks = Object.values(networks)
+            .map((n) => n.name)
+            .join(", ");
+          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
+          setIsNotificationVisible(true);
+          setTimeout(() => setIsNotificationVisible(false), 3000);
+        }
+      };
+
+      ethereumProvider.on("accountsChanged", handleAccountsChanged);
+      ethereumProvider.on("chainChanged", handleChainChanged);
+
+      return () => {
+        ethereumProvider.removeListener("accountsChanged", handleAccountsChanged);
+        ethereumProvider.removeListener("chainChanged", handleChainChanged);
+      };
     };
 
-    const handleChainChanged = async (chainId) => {
-      const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(chainId));
-      if (networkKey) {
-        setCurrentNetwork(networkKey);
-        setAmountTo("");
-        setBestDex("Fetching...");
-        setTokenFrom(networkKey === "bnb" ? "BNB" : "ETH");
-        setTokenTo("USDC");
-      } else {
-        setIsConnected(false);
-        setAddress("");
-        setProvider(null);
-        setSigner(null);
-        setIsInitialLoad(true);
-        const supportedNetworks = Object.values(networks)
-          .map((n) => n.name)
-          .join(", ");
-        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-      }
-    };
-
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
-
-    return () => {
-      window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
-      window.ethereum.removeListener("chainChanged", handleChainChanged);
-    };
+    setupListeners();
   }, []);
 
   return (
