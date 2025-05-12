@@ -5,7 +5,7 @@
   "keywords": [],
   "main": "src/index.tsx",
   "dependencies": {
-    "ethers": "^5.7.2",
+    "ethers": "^5.7.0",
     "framer-motion": "^10.18.0",
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
@@ -13,8 +13,10 @@
     "styled-components": "^6.1.8",
     "lodash": "^4.17.21",
     "i18next": "^23.11.5",
-    "react-i18next": "^14.1.1",
+  "react-i18next": "^13.0.0",
     "@web3modal/ethers": "5.1.11",
+    "@paraswap/core": "^1.0.0",
+    "@paraswap/sdk": "^6.2.0",
     "@magic-ext/web3modal-ethers5": "1.0.1"
   },
   "devDependencies": {
