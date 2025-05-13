@@ -3,13 +3,9 @@ import { ChevronDown, X, HeartPulse, ArrowLeftRight, Wallet, CheckCircle, AlertT
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
-import { debounce } from "lodash";
-import { useTranslation } from "react-i18next";
-import { constructSimpleSDK } from "@paraswap/sdk";
-import { SwapSide } from "@paraswap/core";
-import axios from "axios";
+import { debounce } from 'lodash';
+import { useTranslation } from 'react-i18next';
 
-// استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
   html, body {
     margin: 0;
@@ -28,7 +24,6 @@ const GlobalStyle = createGlobalStyle`
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
 `;
 
-// تنظیمات شبکه‌ها
 const networks = {
   arbitrum: {
     chainId: 42161,
@@ -37,7 +32,7 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
-    apiUrl: "https://api.paraswap.io",
+    apiUrl: "https://arbitrum.api.0x.org",
   },
   base: {
     chainId: 8453,
@@ -46,16 +41,16 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
-    apiUrl: "https://api.paraswap.io",
+    apiUrl: "https://base.api.0x.org",
   },
   ethereum: {
     chainId: 1,
     name: "Ethereum Mainnet",
-    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY || ""}`,
+    rpcUrl: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
-    apiUrl: "https://api.paraswap.io",
+    apiUrl: "https://api.0x.org",
   },
   bnb: {
     chainId: 56,
@@ -64,11 +59,10 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
-    apiUrl: "https://api.paraswap.io",
+    apiUrl: "https://bsc.api.0x.org",
   },
 };
 
-// آدرس توکن‌ها
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -76,11 +70,11 @@ const tokenAddresses = {
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
-    UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f",
-    LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB",
-    WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab",
-    GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0",
-    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb",
+    UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
+    LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
+    WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+    GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
+    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
   },
   base: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -90,7 +84,7 @@ const tokenAddresses = {
   },
   ethereum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     WBTC: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     UNI: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
@@ -109,7 +103,6 @@ const tokenAddresses = {
   },
 };
 
-// اعشار توکن‌ها
 const tokenDecimals = {
   arbitrum: {
     ETH: 18,
@@ -150,7 +143,8 @@ const tokenDecimals = {
   },
 };
 
-// ABI برای قراردادهای ERC20
+let PERMIT2_ADDRESS = null;
+
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) public returns (bool)",
   "function allowance(address owner, address spender) public view returns (uint256)",
@@ -159,7 +153,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌های کامپوننت‌ها
+// Styles
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -305,7 +299,7 @@ const TrustSticker = styled.div`
 `;
 
 const TrustText = styled.p`
-  font-family: "Caveat", cursive;
+  font-family: 'Caveat', cursive;
   font-size: 1.25rem;
   color: #374151;
   margin: 0;
@@ -597,24 +591,14 @@ const LanguageSelector = styled.select`
 const SwapAnimation = ({ isSwapping, hasError }) => {
   const heartVariants = {
     initial: { scale: 1 },
-    animate: hasError
-      ? { scale: 1 }
-      : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
+    animate: hasError ? { scale: 1 } : { scale: [1, 1.2, 1], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } },
   };
 
   return isSwapping ? (
     <AnimationOverlay initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
       <motion.div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <motion.div
-          style={{
-            width: "80px",
-            height: "80px",
-            background: "linear-gradient(to right, #10b981, #3b82f6)",
-            borderRadius: "50%",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          style={{ width: "80px", height: "80px", background: "linear-gradient(to right, #10b981, #3b82f6)", borderRadius: "50%", display: "flex", justifyContent: "center", alignItems: "center" }}
           variants={heartVariants}
           initial="initial"
           animate="animate"
@@ -634,37 +618,14 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 
   return (
     <motion.div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 101,
-      }}
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", alignItems: "center", zIndex: 101 }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
       <motion.div
-        style={{
-          background,
-          color: "white",
-          padding: "1rem 2rem",
-          borderRadius: "0.5rem",
-          boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.5rem",
-          maxWidth: "400px",
-          textAlign: "center",
-          wordBreak: "break-word",
-        }}
+        style={{ background, color: "white", padding: "1rem 2rem", borderRadius: "0.5rem", boxShadow: "0 4px 6px rgba(0, 0, 0, 0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", maxWidth: "400px", textAlign: "center", wordBreak: "break-word" }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
@@ -674,18 +635,7 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
           {isSuccess ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
           <span>{message}</span>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: "rgba(255, 255, 255, 0.2)",
-            color: "white",
-            border: "none",
-            padding: "0.25rem 0.5rem",
-            borderRadius: "0.25rem",
-            cursor: "pointer",
-            marginTop: "0.5rem",
-          }}
-        >
+        <button onClick={onClose} style={{ background: "rgba(255, 255, 255, 0.2)", color: "white", border: "none", padding: "0.25rem 0.5rem", borderRadius: "0.25rem", cursor: "pointer", marginTop: "0.5rem" }}>
           OK
         </button>
       </motion.div>
@@ -693,100 +643,64 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
   );
 };
 
-// توابع کمکی
-const detectEthereumProvider = async () => {
-  if (typeof window === "undefined" || !window.ethereum) return null;
-
-  const providers = window.ethereum?.providers || [window.ethereum];
-  return providers.find((p) => p.isMetaMask) || providers[0] || null;
-};
-
 const switchNetwork = async (networkKey, provider) => {
-  if (!provider) return false;
   const network = networks[networkKey];
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: `0x${network.chainId.toString(16)}` }],
     });
-    return true;
   } catch (error) {
     if (error.code === 4902) {
-      try {
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: `0x${network.chainId.toString(16)}`,
-              chainName: network.name,
-              rpcUrls: [network.rpcUrl],
-              nativeCurrency: network.nativeCurrency,
-              blockExplorerUrls: [network.explorerUrl],
-            },
-          ],
-        });
-        return true;
-      } catch (addError) {
-        throw addError;
-      }
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: `0x${network.chainId.toString(16)}`,
+          chainName: network.name,
+          rpcUrls: [network.rpcUrl],
+          nativeCurrency: network.nativeCurrency,
+          blockExplorerUrls: [network.explorerUrl],
+        }],
+      });
+    } else {
+      throw error;
     }
-    throw error;
-  }
-};
-
-const createSwapper = (networkId) => {
-  if (!networkId) {
-    console.error("Network ID is undefined");
-    return null;
-  }
-  const networkKey = Object.keys(networks).find((key) => networks[key].networkId === networkId);
-  if (!networkKey) {
-    console.error(`Network ID ${networkId} is not supported`);
-    return null;
-  }
-  try {
-    return constructSimpleSDK({
-      chainId: networkId,
-      apiURL: networks[networkKey].apiUrl,
-      fetcher: axios,
-    });
-  } catch (error) {
-    console.error("Failed to initialize Paraswap SDK:", error.message);
-    return null;
   }
 };
 
 const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
-  if (typeof window === "undefined") return 0;
   try {
-    const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
+    const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
     if (!tokenAddress) {
       console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
       return 0;
     }
 
-    const usdcAddress = tokenAddresses[currentNetwork]?.["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-    const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
+    const usdcAddress = tokenAddresses[currentNetwork]["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+
+    const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
     const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
 
-    const paraswap = createSwapper(networks[currentNetwork]?.networkId);
-    if (!paraswap) {
-      console.warn(`Paraswap SDK could not be initialized for network ${currentNetwork}`);
-      return 0;
+    const params = {
+      sellToken: tokenAddress,
+      buyToken: usdcAddress,
+      sellAmount: amountInUnits,
+    };
+
+    const url = `${networks[currentNetwork].apiUrl}/swap/permit2/price`;
+    const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch price from 0x: ${response.status} - ${errorText}`);
+    }
+    const data = await response.json();
+
+    if (!data || !data.buyAmount) {
+      throw new Error("Invalid response structure from 0x API");
     }
 
-    const priceRoute = await paraswap.swap.getRate({
-      srcToken: tokenAddress,
-      destToken: usdcAddress,
-      amount: amountInUnits,
-      side: SwapSide.SELL,
-    });
-
-    if (!priceRoute || !priceRoute.destAmount) {
-      throw new Error("Invalid response from Paraswap API");
-    }
-
-    return Number(priceRoute.destAmount) / 1e6; // USDC has 6 decimals
+    return data.buyAmount / 1e6; // USDC has 6 decimals
   } catch (error) {
     console.error(`Error fetching price for ${tokenSymbol} on ${currentNetwork}:`, error.message);
     return 0;
@@ -823,15 +737,14 @@ function Swap() {
   const [deadline, setDeadline] = useState("20");
   const [gasEstimate, setGasEstimate] = useState({ gwei: "0", usd: "N/A" });
   const [searchTokenAddress, setSearchTokenAddress] = useState("");
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-    if (typeof window === "undefined" || !userAddress || !provider || !tokenSymbol) {
+    if (!userAddress || !provider || !tokenSymbol) {
       console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
       return "0";
     }
     try {
-      const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
+      const tokenAddress = tokenAddresses[currentNetwork][tokenSymbol];
       if (!tokenAddress) {
         console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
         return "0";
@@ -845,7 +758,7 @@ function Swap() {
         balance = await tokenContract.balanceOf(userAddress);
       }
 
-      const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
+      const decimals = tokenDecimals[currentNetwork][tokenSymbol] || 18;
       return ethers.utils.formatUnits(balance, decimals);
     } catch (error) {
       console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error.message);
@@ -854,71 +767,89 @@ function Swap() {
   };
 
   const fetchBestRate = async (signal) => {
-    if (typeof window === "undefined" || isInitialLoad) return;
     try {
-      if (!isConnected || !address || !provider) {
+      if (!isConnected || !address) {
         setAmountTo("");
-        setBestDex(t("invalid_amount") || "Invalid Amount");
+        setBestDex(t("invalid_amount"));
         setPriceRoute(null);
         setUsdEquivalent("");
-        setSwapNotification({ message: t("invalid_amount") || "Invalid Amount", isSuccess: false });
+        setSwapNotification({ message: t("invalid_amount"), isSuccess: false });
         setTimeout(() => setSwapNotification(null), 3000);
         return;
       }
 
-      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
-      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
+      const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
       if (!sellTokenAddress || !buyTokenAddress) {
         console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
-        setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
+        setErrorMessage(t("invalid_contract_address"));
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
       }
 
       setIsPriceRouteReady(false);
-      const decimalsFrom = tokenDecimals[currentNetwork]?.[tokenFrom] || 18;
+      const decimalsFrom = tokenDecimals[currentNetwork][tokenFrom] || 18;
       const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
       if (Number(amountFrom) <= 0) {
         setAmountTo("");
-        setBestDex(t("invalid_amount") || "Invalid Amount");
+        setBestDex(t("invalid_amount"));
         setPriceRoute(null);
         setUsdEquivalent("");
         return;
       }
 
-      const paraswap = createSwapper(networks[currentNetwork]?.networkId);
-      if (!paraswap) {
-        setErrorMessage(
-          t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }) ||
-          "Network not supported"
-        );
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      const priceRoute = await paraswap.swap.getRate({
-        srcToken: sellTokenAddress,
-        destToken: buyTokenAddress,
-        amount: sellAmountFormatted,
-        side: SwapSide.SELL,
-        userAddress: address,
-        slippage: Number(slippage) || 1,
-      });
-
-      if (!priceRoute || !priceRoute.destAmount) {
-        throw new Error("No routes found with enough liquidity");
-      }
-
-      setPriceRoute(priceRoute);
-      const decimalsTo = tokenDecimals[currentNetwork]?.[tokenTo] || 18;
-      const formattedAmountTo = ethers.utils.formatUnits(priceRoute.destAmount, decimalsTo);
-      setAmountTo(formattedAmountTo);
-      setBestDex("Paraswap");
-      setIsPriceRouteReady(true);
-
+      const fromPriceInUSDC = await fetchTokenPrice(tokenFrom, currentNetwork);
       const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
+      if (fromPriceInUSDC === 0 || toPriceInUSDC === 0) {
+        throw new Error("Failed to fetch token prices for sanity check");
+      }
+
+      const relativePrice = fromPriceInUSDC / toPriceInUSDC;
+      const expectedAmountTo = Number(amountFrom) * relativePrice;
+      const maxReasonableAmount = expectedAmountTo * (1 + Number(slippage) / 100) * 2;
+
+      const params = {
+        sellToken: sellTokenAddress,
+        buyToken: buyTokenAddress,
+        sellAmount: sellAmountFormatted,
+        slippagePercentage: Number(slippage) / 100,
+        takerAddress: address,
+        chainId: networks[currentNetwork].chainId,
+      };
+
+      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`, { signal });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.issues && data.issues.allowance && data.issues.allowance.spender) {
+        PERMIT2_ADDRESS = data.issues.allowance.spender;
+      }
+
+      setPriceRoute(data);
+      const decimalsTo = tokenDecimals[currentNetwork][tokenTo] || 18;
+      const formattedAmountTo = ethers.utils.formatUnits(data.buyAmount, decimalsTo);
+      const amountToNumber = Number(formattedAmountTo);
+
+      if (amountToNumber > maxReasonableAmount) {
+        const estimatedAmountTo = expectedAmountTo.toFixed(6);
+        setAmountTo(estimatedAmountTo);
+        setBestDex("Estimated (0x API failed)");
+        setIsPriceRouteReady(true);
+        setSwapNotification({ message: t("using_estimated_amount"), isSuccess: false });
+        setTimeout(() => setSwapNotification(null), 3000);
+      } else {
+        setAmountTo(formattedAmountTo);
+        setBestDex("0x Aggregator");
+        setIsPriceRouteReady(true);
+      }
+
       if (toPriceInUSDC > 0) {
         const amountToBN = ethers.utils.parseUnits(formattedAmountTo, decimalsTo);
         const usdValueBN = amountToBN.mul(Math.round(toPriceInUSDC * 1e6)).div(1e6);
@@ -928,17 +859,23 @@ function Swap() {
         setUsdEquivalent("Price unavailable");
       }
 
-      const gasEstimateValue = priceRoute.estimatedGas || "200000";
-      const gasInGwei = ethers.utils.formatUnits(gasEstimateValue, "gwei");
-      setGasEstimate({ gwei: gasInGwei, usd: "N/A" });
+      const nativeToken = networks[currentNetwork].nativeCurrency.symbol;
+      const nativePrice = await fetchTokenPrice(nativeToken, currentNetwork);
+      const gasEstimateValue = data.estimatedGas || "200000";
+      const gasInEth = ethers.utils.formatUnits(gasEstimateValue, "gwei") * 1e-9;
+      const gasInUsd = nativePrice > 0 ? (gasInEth * nativePrice).toFixed(2) : "N/A";
+      setGasEstimate({
+        gwei: ethers.utils.formatUnits(gasEstimateValue, "gwei"),
+        usd: gasInUsd,
+      });
     } catch (error) {
       if (error.name === "AbortError") return;
       console.error("Error fetching rate:", error.message);
       setAmountTo("");
-      setBestDex(t("price_route_not_ready") || "Price Route Not Ready");
+      setBestDex(t("price_route_not_ready"));
       setPriceRoute(null);
       setUsdEquivalent("N/A");
-      setSwapNotification({ message: error.message || t("price_route_not_ready") || "Price Route Not Ready", isSuccess: false });
+      setSwapNotification({ message: t("price_route_not_ready"), isSuccess: false });
       setTimeout(() => setSwapNotification(null), 3000);
     }
   };
@@ -954,81 +891,55 @@ function Swap() {
   };
 
   const handleConnect = async () => {
-    if (typeof window === "undefined") {
-      setErrorMessage(t("metamask_not_installed") || "MetaMask Not Installed");
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
     try {
-      const ethereumProvider = await detectEthereumProvider();
-      if (!ethereumProvider) {
-        setErrorMessage(t("metamask_not_installed") || "MetaMask Not Installed");
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      const provider = new ethers.providers.Web3Provider(ethereumProvider, "any");
-      await provider.send("eth_requestAccounts", []);
-      const network = await provider.getNetwork();
-      const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(network.chainId));
-      if (!networkKey) {
-        const supportedNetworks = Object.values(networks)
-          .map((n) => n.name)
-          .join(", ");
-        setErrorMessage(t("network_not_supported", { networks: supportedNetworks }) || "Network Not Supported");
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        const switched = await switchNetwork("arbitrum", ethereumProvider);
-        if (!switched) return;
-        setCurrentNetwork("arbitrum");
-      } else {
-        setCurrentNetwork(networkKey);
-      }
-      const signer = provider.getSigner();
-      const userAddress = await signer.getAddress();
-      setProvider(provider);
-      setSigner(signer);
-      setAddress(userAddress);
-      setIsConnected(true);
-      setIsInitialLoad(false);
-
-      try {
-        await fetch("/api/save-wallet", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+      if (window.ethereum) {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const network = await provider.getNetwork();
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(network.chainId));
+        if (!networkKey) {
+          const supportedNetworks = Object.values(networks).map(n => n.name).join(", ");
+          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }));
+          setIsNotificationVisible(true);
+          setTimeout(() => setIsNotificationVisible(false), 3000);
+          await switchNetwork("arbitrum", window.ethereum);
+          return;
+        }
+        const signer = await provider.getSigner();
+        const userAddress = await signer.getAddress();
+        setProvider(provider);
+        setSigner(signer);
+        setAddress(userAddress);
+        setIsConnected(true);
+        await fetch('/api/save-wallet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ address: userAddress }),
         });
-      } catch (apiError) {
-        console.error("Failed to save wallet:", apiError.message);
+        setCurrentNetwork(networkKey);
+      } else {
+        setErrorMessage(t("metamask_not_installed"));
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
       }
     } catch (error) {
       console.error("Connection error:", error.message);
-      setErrorMessage(t("failed_connect_wallet", { error: error.message }) || `Failed to Connect Wallet: ${error.message}`);
+      setErrorMessage(t("failed_connect_wallet", { error: error.message }));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
   };
 
   const handleNetworkChange = async (networkKey) => {
-    if (typeof window === "undefined") return;
-    const ethereumProvider = await detectEthereumProvider();
-    if (!ethereumProvider) return;
     try {
-      const switched = await switchNetwork(networkKey, ethereumProvider);
-      if (switched) {
-        setCurrentNetwork(networkKey);
-        setIsNetworkDropdownOpen(false);
-        setAmountTo("");
-        setBestDex("Fetching...");
-        setTokenFrom(networkKey === "bnb" ? "BNB" : "ETH");
-        setTokenTo("USDC");
-      }
+      await switchNetwork(networkKey, window.ethereum);
+      setCurrentNetwork(networkKey);
+      setIsNetworkDropdownOpen(false);
+      setAmountTo("");
+      setBestDex("Fetching...");
     } catch (error) {
       console.error("Network switch error:", error.message);
-      setErrorMessage(t("failed_connect_wallet", { error: error.message }) || `Failed to Switch Network: ${error.message}`);
+      setErrorMessage(t("failed_connect_wallet", { error: error.message }));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
@@ -1066,19 +977,13 @@ function Swap() {
 
   const handleSearchToken = async () => {
     if (!ethers.utils.isAddress(searchTokenAddress)) {
-      setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
+      setErrorMessage(t("invalid_contract_address"));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
       return;
     }
 
     try {
-      if (!provider) {
-        setErrorMessage("Provider not initialized");
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
       const tokenContract = new ethers.Contract(searchTokenAddress, ERC20_ABI, provider);
       const symbol = await tokenContract.symbol();
       tokenAddresses[currentNetwork][symbol] = searchTokenAddress;
@@ -1086,85 +991,75 @@ function Swap() {
       handleTokenSelect(symbol);
     } catch (error) {
       console.error("Error fetching token:", error.message);
-      setErrorMessage(t("failed_fetch_token", { error: error.message }) || `Failed to Fetch Token: ${error.message}`);
+      setErrorMessage(t("failed_fetch_token", { error: error.message }));
       setIsNotificationVisible(true);
       setTimeout(() => setIsNotificationVisible(false), 3000);
     }
   };
 
   const handleSwap = async () => {
-    if (typeof window === "undefined") return;
-    const ethereumProvider = await detectEthereumProvider();
-    if (!ethereumProvider) return;
     try {
       if (!isConnected || !address || !priceRoute || !isPriceRouteReady) {
-        setErrorMessage(t("invalid_amount") || "Invalid Amount");
+        setErrorMessage(t("invalid_amount"));
         setIsNotificationVisible(true);
         setTimeout(() => setIsNotificationVisible(false), 3000);
         return;
       }
 
       setIsSwapping(true);
-      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
-      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
-      const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork]?.[tokenFrom] || 18);
-      const minAmount = ethers.utils
-        .parseUnits(amountTo, tokenDecimals[currentNetwork]?.[tokenTo] || 18)
-        .mul(100 - Number(slippage))
-        .div(100);
-
-      const paraswap = createSwapper(networks[currentNetwork]?.networkId);
-      if (!paraswap) {
-        setErrorMessage(
-          t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }) ||
-          "Network not supported"
-        );
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      const transactionRequest = await paraswap.swap.buildTx({
-        srcToken: sellTokenAddress,
-        destToken: buyTokenAddress,
-        srcAmount: amountIn.toString(),
-        destAmount: minAmount.toString(),
-        priceRoute,
-        userAddress: address,
-        partner: "your_partner_name",
-      });
+      const sellTokenAddress = tokenAddresses[currentNetwork][tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork][tokenTo];
+      const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork][tokenFrom] || 18);
+      const amountOutMin = ethers.utils.parseUnits(amountTo, tokenDecimals[currentNetwork][tokenTo] || 18).mul(100 - Number(slippage)).div(100);
 
       if (sellTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-        setSwapNotification({ message: t("approving_token") || "Approving Token", isSuccess: false });
+        setSwapNotification({ message: t("approving_token"), isSuccess: false });
         const tokenContract = new ethers.Contract(sellTokenAddress, ERC20_ABI, signer);
-        const allowance = await tokenContract.allowance(address, transactionRequest.to);
+        const allowance = await tokenContract.allowance(address, PERMIT2_ADDRESS);
         if (allowance.lt(amountIn)) {
-          const approveTx = await tokenContract.approve(transactionRequest.to, amountIn);
+          const approveTx = await tokenContract.approve(PERMIT2_ADDRESS, amountIn);
           await approveTx.wait();
-          setSwapNotification({ message: t("token_approved") || "Token Approved", isSuccess: true });
+          setSwapNotification({ message: t("token_approved"), isSuccess: true });
           setTimeout(() => setSwapNotification(null), 3000);
         }
       }
 
+      const params = {
+        sellToken: sellTokenAddress,
+        buyToken: buyTokenAddress,
+        sellAmount: amountIn.toString(),
+        takerAddress: address,
+        slippagePercentage: Number(slippage) / 100,
+      };
+
+      const url = `${networks[currentNetwork].apiUrl}/swap/permit2/quote`;
+      const response = await fetch(`/api/swap?url=${encodeURIComponent(url)}&params=${encodeURIComponent(JSON.stringify(params))}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Swap API error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+
       const tx = {
-        to: transactionRequest.to,
-        data: transactionRequest.data,
-        value: transactionRequest.value,
-        gasPrice: transactionRequest.gasPrice,
-        gas: transactionRequest.estimatedGas,
+        to: data.to,
+        data: data.data,
+        value: data.value,
+        gasPrice: data.gasPrice,
+        gas: data.estimatedGas,
       };
 
       const receipt = await signer.sendTransaction(tx);
       await receipt.wait();
-      setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }) || `Swap Successful: ${receipt.transactionHash}`, isSuccess: true });
+      setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }), isSuccess: true });
     } catch (error) {
       console.error("Swap error:", error.message);
       if (error.code === 4001) {
-        setSwapNotification({ message: t("transaction_rejected") || "Transaction Rejected", isSuccess: false });
+        setSwapNotification({ message: t("transaction_rejected"), isSuccess: false });
       } else if (error.code === "INSUFFICIENT_FUNDS") {
-        setSwapNotification({ message: t("insufficient_funds") || "Insufficient Funds", isSuccess: false });
+        setSwapNotification({ message: t("insufficient_funds"), isSuccess: false });
       } else {
-        setSwapNotification({ message: t("swap_failed", { error: error.message }) || `Swap Failed: ${error.message}`, isSuccess: false });
+        setSwapNotification({ message: t("swap_failed", { error: error.message }), isSuccess: false });
       }
     } finally {
       setIsSwapping(false);
@@ -1177,75 +1072,48 @@ function Swap() {
   };
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (isConnected && address && provider) {
-      fetchTokenBalance(tokenFrom, address).then((balance) => setBalanceFrom(balance || "0"));
-      fetchTokenBalance(tokenTo, address).then((balance) => setBalanceTo(balance || "0"));
+    if (isConnected && address) {
+      fetchTokenBalance(tokenFrom, address).then(setBalanceFrom);
+      fetchTokenBalance(tokenTo, address).then(setBalanceTo);
     }
   }, [isConnected, address, tokenFrom, tokenTo, currentNetwork, provider]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || isInitialLoad) return;
-    if (amountFrom && Number(amountFrom) > 0 && isConnected && provider && address) {
+    if (amountFrom && Number(amountFrom) > 0 && isConnected) {
       debouncedFetchBestRate(abortController.signal);
     }
     return () => abortController.abort();
-  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage, provider]);
+  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const setupListeners = async () => {
-      const ethereumProvider = await detectEthereumProvider();
-      if (!ethereumProvider) return;
-
-      const handleAccountsChanged = (accounts) => {
+    if (window.ethereum) {
+      window.ethereum.on("accountsChanged", (accounts) => {
         if (accounts.length > 0) {
           setAddress(accounts[0]);
           setIsConnected(true);
-          setIsInitialLoad(false);
         } else {
           setIsConnected(false);
           setAddress("");
           setProvider(null);
           setSigner(null);
-          setIsInitialLoad(true);
         }
-      };
+      });
 
-      const handleChainChanged = async (chainId) => {
-        const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(chainId));
+      window.ethereum.on("chainChanged", async (chainId) => {
+        const networkKey = Object.keys(networks).find(key => networks[key].chainId === Number(chainId));
         if (networkKey) {
           setCurrentNetwork(networkKey);
           setAmountTo("");
           setBestDex("Fetching...");
-          setTokenFrom(networkKey === "bnb" ? "BNB" : "ETH");
-          setTokenTo("USDC");
         } else {
           setIsConnected(false);
           setAddress("");
           setProvider(null);
           setSigner(null);
-          setIsInitialLoad(true);
-          const supportedNetworks = Object.values(networks)
-            .map((n) => n.name)
-            .join(", ");
-          setErrorMessage(t("network_not_supported", { networks: supportedNetworks }) || "Network Not Supported");
-          setIsNotificationVisible(true);
-          setTimeout(() => setIsNotificationVisible(false), 3000);
         }
-      };
-
-      ethereumProvider.on("accountsChanged", handleAccountsChanged);
-      ethereumProvider.on("chainChanged", handleChainChanged);
-
-      return () => {
-        ethereumProvider.removeListener("accountsChanged", handleAccountsChanged);
-        ethereumProvider.removeListener("chainChanged", handleChainChanged);
-      };
-    };
-
-    setupListeners();
-  }, [t]);
+      });
+    }
+  }, []);
 
   return (
     <AppContainer>
@@ -1257,13 +1125,13 @@ function Swap() {
           <HeartIcon whileHover={{ scale: 1.2 }} whileTap={{ scale: 0.9 }}>
             <HeartPulse size={24} />
           </HeartIcon>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white" }}>{t("title") || "Swap"}</h1>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "white" }}>{t("title")}</h1>
           <BetaTag>Beta</BetaTag>
         </HeaderTitle>
         <div style={{ display: "flex", gap: "1rem" }}>
           <NetworkSelector>
             <NetworkButton onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}>
-              {networks[currentNetwork]?.name || "Select Network"} <ChevronDown size={16} />
+              {networks[currentNetwork].name} <ChevronDown size={16} />
             </NetworkButton>
             {isNetworkDropdownOpen && (
               <NetworkDropdown>
@@ -1275,7 +1143,7 @@ function Swap() {
               </NetworkDropdown>
             )}
           </NetworkSelector>
-          <LanguageSelector onChange={handleLanguageChange} value={i18n.language || "en"}>
+          <LanguageSelector onChange={handleLanguageChange} value={i18n.language}>
             <option value="en">English</option>
             <option value="fa">فارسی</option>
           </LanguageSelector>
@@ -1283,12 +1151,12 @@ function Swap() {
             <WalletContainer>
               <Wallet size={20} color="#3b82f6" />
               <span style={{ color: "white", fontSize: "0.875rem" }}>
-                {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connected"}
+                {address.slice(0, 6)}...{address.slice(-4)}
               </span>
             </WalletContainer>
           ) : (
             <ConnectButton whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleConnect}>
-              {t("connect_wallet") || "Connect Wallet"}
+              {t("connect_wallet")}
             </ConnectButton>
           )}
         </div>
@@ -1299,7 +1167,7 @@ function Swap() {
       <MainContent>
         <Card>
           <CardContent>
-            <Subtitle>{t("swap_tokens") || "Swap Tokens"}</Subtitle>
+            <Subtitle>{t("swap_tokens")}</Subtitle>
             <InputContainer>
               <Input
                 type="number"
@@ -1310,37 +1178,36 @@ function Swap() {
                 step="0.001"
               />
               <TokenButtonContainer>
-                <TokenButton
-                  onClick={() => {
-                    setIsSelectingFrom(true);
-                    setIsModalOpen(true);
-                  }}
-                >
+                <TokenButton onClick={() => { setIsSelectingFrom(true); setIsModalOpen(true); }}>
                   {tokenFrom} <ChevronDown size={16} />
                 </TokenButton>
                 {isConnected && (
                   <BalanceContainer onClick={() => handleMaxClick(balanceFrom)}>
                     <span>{Number(balanceFrom).toFixed(4)}</span>
-                    <MaxButton>{t("max") || "Max"}</MaxButton>
+                    <MaxButton>{t("max")}</MaxButton>
                   </BalanceContainer>
                 )}
               </TokenButtonContainer>
             </InputContainer>
             <UsdEquivalent>{usdEquivalent}</UsdEquivalent>
             <SwapTokensContainer>
-              <SwapTokensButton onClick={handleSwapTokens} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <SwapTokensButton
+                onClick={handleSwapTokens}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
                 <ArrowLeftRight size={20} />
               </SwapTokensButton>
             </SwapTokensContainer>
             <InputContainer>
-              <Input type="number" value={amountTo} placeholder="0.0" readOnly />
+              <Input
+                type="number"
+                value={amountTo}
+                placeholder="0.0"
+                readOnly
+              />
               <TokenButtonContainer>
-                <TokenButton
-                  onClick={() => {
-                    setIsSelectingFrom(false);
-                    setIsModalOpen(true);
-                  }}
-                >
+                <TokenButton onClick={() => { setIsSelectingFrom(false); setIsModalOpen(true); }}>
                   {tokenTo} <ChevronDown size={16} />
                 </TokenButton>
                 {isConnected && (
@@ -1355,13 +1222,15 @@ function Swap() {
                 type="text"
                 value={searchTokenAddress}
                 onChange={(e) => setSearchTokenAddress(e.target.value)}
-                placeholder={t("search_token") || "Search Token by Address"}
+                placeholder={t("search_token")}
               />
-              <TokenButton onClick={handleSearchToken}>Search</TokenButton>
+              <TokenButton onClick={handleSearchToken}>
+                Search
+              </TokenButton>
             </InputContainer>
             <SettingsContainer>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("slippage") || "Slippage (%)"}</label>
+                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("slippage")}</label>
                 <SettingsInput
                   type="number"
                   value={slippage}
@@ -1372,7 +1241,7 @@ function Swap() {
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("deadline") || "Deadline (min)"}</label>
+                <label style={{ fontSize: "0.875rem", color: "#9ca3af" }}>{t("deadline")}</label>
                 <SettingsInput
                   type="number"
                   value={deadline}
@@ -1383,9 +1252,9 @@ function Swap() {
               </div>
             </SettingsContainer>
             <RateInfo>
-              {t("best_rate_from") || "Best rate from"}: {bestDex}
+              {t("best_rate_from")}: {bestDex}
               <br />
-              {t("estimated_gas") || "Estimated Gas"}: {gasEstimate.gwei} Gwei (~${gasEstimate.usd} USD)
+              {t("estimated_gas")}: {gasEstimate.gwei} Gwei (~${gasEstimate.usd} USD)
             </RateInfo>
             <SwapButton
               whileHover={{ scale: 1.02 }}
@@ -1393,7 +1262,7 @@ function Swap() {
               onClick={handleSwap}
               disabled={!isConnected || !isPriceRouteReady || isSwapping}
             >
-              {isSwapping ? (t("swapping") || "Swapping...") : t("swap_button", { from: tokenFrom, to: tokenTo }) || `Swap ${tokenFrom} to ${tokenTo}`}
+              {isSwapping ? t("swapping") : t("swap_button", { from: tokenFrom, to: tokenTo })}
             </SwapButton>
           </CardContent>
         </Card>
@@ -1412,11 +1281,11 @@ function Swap() {
             exit={{ scale: 0 }}
           >
             <ModalHeader>
-              <ModalTitle>{t("select_token") || "Select a Token"}</ModalTitle>
+              <ModalTitle>{t("select_token")}</ModalTitle>
               <CloseButton onClick={() => setIsModalOpen(false)}>×</CloseButton>
             </ModalHeader>
             <TokenGrid>
-              {Object.keys(tokenAddresses[currentNetwork] || {}).map((token) => (
+              {Object.keys(tokenAddresses[currentNetwork]).map((token) => (
                 <TokenOption
                   key={token}
                   onClick={() => handleTokenSelect(token)}
@@ -1431,7 +1300,11 @@ function Swap() {
         </ModalOverlay>
       )}
       {isNotificationVisible && (
-        <Notification initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <Notification
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
           <AlertTriangle size={20} />
           <span>{errorMessage}</span>
           <CloseButton onClick={() => setIsNotificationVisible(false)}>×</CloseButton>
@@ -1447,7 +1320,7 @@ function Swap() {
       <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
       <Footer>
         <FooterText>
-          {t("powered_by") || "Powered by"} <FooterLink href="https://paraswap.io/" target="_blank">Paraswap</FooterLink>
+          {t("powered_by")} <FooterLink href="https://0x.org/" target="_blank">0x</FooterLink>
         </FooterText>
       </Footer>
     </AppContainer>
