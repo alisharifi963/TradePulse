@@ -72,15 +72,15 @@ const networks = {
 const tokenAddresses = {
   arbitrum: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e583",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
     WBTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
     ARB: "0x912CE59144191C1204E64559FE8253a0e49E6548",
-    UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
-    LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
-    WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-    GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
-    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+    UNI: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f",
+    LINK: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB",
+    WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab",
+    GMX: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0",
+    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb",
   },
   base: {
     ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
@@ -995,7 +995,6 @@ function Swap() {
       setIsConnected(true);
       setIsInitialLoad(false);
 
-      // اطمینان از وجود API
       try {
         await fetch("/api/save-wallet", {
           method: "POST",
