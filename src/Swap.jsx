@@ -7,10 +7,6 @@ import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
 import { constructSimpleSDK } from "@paraswap/sdk";
 import { SwapSide } from "@paraswap/core";
-
-import { constructSimpleSDK } from "@paraswap/sdk";
-import { ParaSwapVersion }     from "@paraswap/core";
-
 import axios from "axios";
 
 // استایل‌های سراسری
