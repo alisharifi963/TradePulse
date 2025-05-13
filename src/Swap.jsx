@@ -749,7 +749,7 @@ const createSwapper = (networkId) => {
       chainId: networkId,
       apiURL: networks[networkKey].apiUrl,
       fetcher: axios,
-      version: "6.2",
+      version: ParaSwapVersion.V6_2,
     });
   } catch (error) {
     console.error("Failed to initialize Paraswap SDK:", error.message);
@@ -902,8 +902,8 @@ function Swap() {
       const priceRoute = await paraswap.swap.getRate({
         srcToken: sellTokenAddress,
         destToken: buyTokenAddress,
-        srcDecimals: tokenDecimals[currentNetwork][tokenFrom] || 18, 
-        destDecimals: tokenDecimals[currentNetwork][tokenTo]   || 18,  
+        srcDecimals: tokenDecimals[currentNetwork][tokenFrom], 
+        destDecimals: tokenDecimals[currentNetwork][tokenTo],  
         amount: sellAmountFormatted,
         side: SwapSide.SELL,
         userAddress: address,
