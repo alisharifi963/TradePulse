@@ -753,7 +753,6 @@ const createSwapper = (networkId) => {
       chainId: networkId,
       apiURL: networks[networkKey].apiUrl,
       fetcher: axios,
-      version: ParaSwapVersion.V6,
     });
   } catch (error) {
     console.error("Failed to initialize Paraswap SDK:", error.message);
