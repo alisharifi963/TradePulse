@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers } from "ethers"; 
 
 // RPCهای شبکه‌ها
 const providers = {
@@ -8,6 +8,7 @@ const providers = {
   bnb: new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org/"),
 };
 
+// آدرس قراردادهای Quoter
 const quoterAddresses = {
   uniswap: {
     base: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76",
@@ -57,21 +58,19 @@ async function getCurveRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
     "function get_dy(int128 i, int128 j, uint256 dx) external view returns (uint256 dy)",
   ];
   const provider = providers[network];
-
   const poolAddress =
     network === "ethereum"
-      ? "0x960ea3e3C7FB317332d990873d354E18d764559" 
-      : "0xC9B8a3FDECB9D5a63354D2262Ee2e2e2e2e2e2e"; 
+      ? "0x960ea3e3C7FB317332d990873d354E18d764559"
+      : "0xC9B8a3FDECB9D5a63354D2262Ee2e2e2e2e2e2e";
   const poolContract = new ethers.Contract(poolAddress, CURVE_POOL_ABI, provider);
   try {
-    const amountOut = await poolContract.get_dy(0, 1, amountIn); 
+    const amountOut = await poolContract.get_dy(0, 1, amountIn);
     return ethers.utils.formatUnits(amountOut, decimalsTo);
   } catch (error) {
     console.error(`Curve Rate Error on ${network}:`, error.message);
     return null;
   }
 }
-
 
 export async function findBestRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
   const rates = [];
