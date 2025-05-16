@@ -2,10 +2,9 @@ import { motion } from "framer-motion";
 import { ChevronDown, X, HeartPulse, ArrowLeftRight, Wallet, CheckCircle, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
-import { ethers } from "ethers";
 import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
-import { findBestRate } from "./DexAggregator"; // اضافه کردن DexAggregator
+import { findBestRate } from "./DexAggregator";
 
 // استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
@@ -143,15 +142,6 @@ const tokenDecimals = {
     BTCB: 18,
   },
 };
-
-// ABI برای قراردادهای ERC20
-const ERC20_ABI = [
-  "function approve(address spender, uint256 amount) public returns (bool)",
-  "function allowance(address owner, address spender) public view returns (uint256)",
-  "function balanceOf(address owner) public view returns (uint256)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)",
-];
 
 // استایل‌های کامپوننت‌ها (بدون تغییر)
 const AppContainer = styled.div`
@@ -513,11 +503,6 @@ const FooterText = styled.p`
   color: #9ca3af;
 `;
 
-const FooterLink = styled.a`
-  color: #3b82f6;
-  &:hover { text-decoration: underline; }
-`;
-
 const Notification = styled(motion.div)`
   position: fixed;
   top: 1rem;
@@ -691,8 +676,15 @@ const SwapNotification = ({ message, isSuccess, onClose }) => {
 const detectEthereumProvider = async () => {
   if (typeof window === "undefined" || !window.ethereum) return null;
 
-  const providers = window.ethereum?.providers || [window.ethereum];
-  return providers.find((p) => p.isMetaMask) || providers[0] || null;
+  // چک می‌کنیم که window.ethereum وجود داشته باشه و فقط ازش استفاده کنیم
+  const provider = window.ethereum;
+  if (provider.isMetaMask) {
+    return provider;
+  }
+
+  // اگه چند ارائه‌دهنده وجود داره (مثلاً چند کیف‌پول نصب شده)
+  const providers = window.ethereum?.providers || [];
+  return providers.find((p) => p.isMetaMask) || provider || null;
 };
 
 const switchNetwork = async (networkKey, provider) => {
@@ -728,98 +720,6 @@ const switchNetwork = async (networkKey, provider) => {
   }
 };
 
-const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-  if (typeof window === "undefined" || !userAddress || !provider || !tokenSymbol) {
-    console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
-    return "0";
-  }
-  try {
-    const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
-    if (!tokenAddress) {
-      console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
-      return "0";
-    }
-
-    let balance;
-    if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-      balance = await provider.getBalance(userAddress);
-    } else {
-      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-      balance = await tokenContract.balanceOf(userAddress);
-    }
-
-    const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
-    return ethers.utils.formatUnits(balance, decimals);
-  } catch (error) {
-    console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error.message);
-    return "0";
-  }
-};
-
-const fetchBestRate = async (signal) => {
-  if (typeof window === "undefined" || isInitialLoad) return;
-  try {
-    if (!isConnected || !address || !provider) {
-      setAmountTo("");
-      setBestDex(t("invalid_amount") || "Invalid Amount");
-      setPriceRoute(null);
-      setUsdEquivalent("");
-      setSwapNotification({ message: t("invalid_amount") || "Invalid Amount", isSuccess: false });
-      setTimeout(() => setSwapNotification(null), 3000);
-      return;
-    }
-
-    const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
-    const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
-    if (!sellTokenAddress || !buyTokenAddress) {
-      console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
-      setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
-    setIsPriceRouteReady(false);
-    const decimalsFrom = tokenDecimals[currentNetwork]?.[tokenFrom] || 18;
-    const decimalsTo = tokenDecimals[currentNetwork]?.[tokenTo] || 18;
-    const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom);
-    if (Number(amountFrom) <= 0) {
-      setAmountTo("");
-      setBestDex(t("invalid_amount") || "Invalid Amount");
-      setPriceRoute(null);
-      setUsdEquivalent("");
-      return;
-    }
-
-    const bestRate = await findBestRate(currentNetwork, sellTokenAddress, buyTokenAddress, sellAmountFormatted, decimalsTo);
-    if (!bestRate || !bestRate.amountOut) {
-      throw new Error("No routes found with enough liquidity");
-    }
-
-    setPriceRoute(bestRate);
-    setAmountTo(bestRate.amountOut);
-    setBestDex(bestRate.dex);
-    setIsPriceRouteReady(true);
-
-    // برای سادگی، usdEquivalent رو غیرفعال می‌کنیم چون Paraswap حذف شده
-    setUsdEquivalent("N/A");
-
-    // تخمین گس (برای سادگی، یه مقدار ثابت فرض می‌کنیم)
-    setGasEstimate({ gwei: "200000", usd: "N/A" });
-  } catch (error) {
-    if (error.name === "AbortError") return;
-    console.error("Error fetching rate:", error.message);
-    setAmountTo("");
-    setBestDex(t("price_route_not_ready") || "Price Route Not Ready");
-    setPriceRoute(null);
-    setUsdEquivalent("N/A");
-    setSwapNotification({ message: error.message || t("price_route_not_ready") || "Price Route Not Ready", isSuccess: false });
-    setTimeout(() => setSwapNotification(null), 3000);
-  }
-};
-
-const debouncedFetchBestRate = debounce(fetchBestRate, 500);
-
 function Swap() {
   const { t, i18n } = useTranslation();
   const abortController = new AbortController();
@@ -836,7 +736,6 @@ function Swap() {
   const [currentNetwork, setCurrentNetwork] = useState("arbitrum");
   const [address, setAddress] = useState("");
   const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
   const [balanceFrom, setBalanceFrom] = useState("0");
   const [balanceTo, setBalanceTo] = useState("0");
   const [isSwapping, setIsSwapping] = useState(false);
@@ -877,10 +776,9 @@ function Swap() {
         return;
       }
 
-      const provider = new ethers.providers.Web3Provider(ethereumProvider, "any");
-      await provider.send("eth_requestAccounts", []);
-      const network = await provider.getNetwork();
-      const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(network.chainId));
+      await ethereumProvider.request({ method: "eth_requestAccounts" });
+      const network = await ethereumProvider.request({ method: "eth_chainId" });
+      const networkKey = Object.keys(networks).find((key) => networks[key].chainId === Number(network));
       if (!networkKey) {
         const supportedNetworks = Object.values(networks)
           .map((n) => n.name)
@@ -894,10 +792,9 @@ function Swap() {
       } else {
         setCurrentNetwork(networkKey);
       }
-      const signer = provider.getSigner();
-      const userAddress = await signer.getAddress();
-      setProvider(provider);
-      setSigner(signer);
+      const accounts = await ethereumProvider.request({ method: "eth_accounts" });
+      const userAddress = accounts[0];
+      setProvider(ethereumProvider);
       setAddress(userAddress);
       setIsConnected(true);
       setIsInitialLoad(false);
@@ -972,31 +869,9 @@ function Swap() {
   };
 
   const handleSearchToken = async () => {
-    if (!ethers.utils.isAddress(searchTokenAddress)) {
-      setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-      return;
-    }
-
-    try {
-      if (!provider) {
-        setErrorMessage("Provider not initialized");
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-      const tokenContract = new ethers.Contract(searchTokenAddress, ERC20_ABI, provider);
-      const symbol = await tokenContract.symbol();
-      tokenAddresses[currentNetwork][symbol] = searchTokenAddress;
-      tokenDecimals[currentNetwork][symbol] = await tokenContract.decimals();
-      handleTokenSelect(symbol);
-    } catch (error) {
-      console.error("Error fetching token:", error.message);
-      setErrorMessage(t("failed_fetch_token", { error: error.message }) || `Failed to Fetch Token: ${error.message}`);
-      setIsNotificationVisible(true);
-      setTimeout(() => setIsNotificationVisible(false), 3000);
-    }
+    setErrorMessage(t("search_token_not_supported") || "Search Token by Address is not supported in this version");
+    setIsNotificationVisible(true);
+    setTimeout(() => setIsNotificationVisible(false), 3000);
   };
 
   const handleSwap = async () => {
@@ -1026,21 +901,74 @@ function Swap() {
     i18n.changeLanguage(e.target.value);
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (isConnected && address && provider) {
-      fetchTokenBalance(tokenFrom, address).then((balance) => setBalanceFrom(balance || "0"));
-      fetchTokenBalance(tokenTo, address).then((balance) => setBalanceTo(balance || "0"));
+  const fetchBestRate = async (signal) => {
+    if (typeof window === "undefined" || isInitialLoad) return;
+    try {
+      if (!isConnected || !address) {
+        setAmountTo("");
+        setBestDex(t("invalid_amount") || "Invalid Amount");
+        setPriceRoute(null);
+        setUsdEquivalent("");
+        setSwapNotification({ message: t("invalid_amount") || "Invalid Amount", isSuccess: false });
+        setTimeout(() => setSwapNotification(null), 3000);
+        return;
+      }
+
+      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
+      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
+      if (!sellTokenAddress || !buyTokenAddress) {
+        console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
+        setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
+        setIsNotificationVisible(true);
+        setTimeout(() => setIsNotificationVisible(false), 3000);
+        return;
+      }
+
+      setIsPriceRouteReady(false);
+      const decimalsFrom = tokenDecimals[currentNetwork]?.[tokenFrom] || 18;
+      const decimalsTo = tokenDecimals[currentNetwork]?.[tokenTo] || 18;
+      const sellAmountFormatted = Number(amountFrom) * 10 ** decimalsFrom; // به جای ethers استفاده می‌کنیم
+      if (Number(amountFrom) <= 0) {
+        setAmountTo("");
+        setBestDex(t("invalid_amount") || "Invalid Amount");
+        setPriceRoute(null);
+        setUsdEquivalent("");
+        return;
+      }
+
+      const bestRate = await findBestRate(currentNetwork, sellTokenAddress, buyTokenAddress, sellAmountFormatted, decimalsTo);
+      if (!bestRate || !bestRate.amountOut) {
+        throw new Error("No routes found with enough liquidity");
+      }
+
+      setPriceRoute(bestRate);
+      setAmountTo(bestRate.amountOut);
+      setBestDex(bestRate.dex);
+      setIsPriceRouteReady(true);
+
+      setUsdEquivalent("N/A");
+      setGasEstimate({ gwei: "200000", usd: "N/A" });
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      console.error("Error fetching rate:", error.message);
+      setAmountTo("");
+      setBestDex(t("price_route_not_ready") || "Price Route Not Ready");
+      setPriceRoute(null);
+      setUsdEquivalent("N/A");
+      setSwapNotification({ message: error.message || t("price_route_not_ready") || "Price Route Not Ready", isSuccess: false });
+      setTimeout(() => setSwapNotification(null), 3000);
     }
-  }, [isConnected, address, tokenFrom, tokenTo, currentNetwork, provider]);
+  };
+
+  const debouncedFetchBestRate = debounce(fetchBestRate, 500);
 
   useEffect(() => {
     if (typeof window === "undefined" || isInitialLoad) return;
-    if (amountFrom && Number(amountFrom) > 0 && isConnected && provider && address) {
+    if (amountFrom && Number(amountFrom) > 0 && isConnected && address) {
       debouncedFetchBestRate(abortController.signal);
     }
     return () => abortController.abort();
-  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage, provider]);
+  }, [amountFrom, tokenFrom, tokenTo, currentNetwork, isConnected, address, slippage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1057,7 +985,6 @@ function Swap() {
           setIsConnected(false);
           setAddress("");
           setProvider(null);
-          setSigner(null);
           setIsInitialLoad(true);
         }
       };
@@ -1074,7 +1001,6 @@ function Swap() {
           setIsConnected(false);
           setAddress("");
           setProvider(null);
-          setSigner(null);
           setIsInitialLoad(true);
           const supportedNetworks = Object.values(networks)
             .map((n) => n.name)
