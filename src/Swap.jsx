@@ -5,9 +5,7 @@ import styled, { createGlobalStyle } from "styled-components";
 import { ethers } from "ethers";
 import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
-import { constructSimpleSDK } from "@paraswap/sdk";
-import { SwapSide } from "@paraswap/core";
-import axios from "axios";
+import { findBestRate } from "./DexAggregator"; // اضافه کردن DexAggregator
 
 // استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
@@ -37,7 +35,6 @@ const networks = {
     explorerUrl: "https://arbiscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 42161,
-    apiUrl: "https://api.paraswap.io",
   },
   base: {
     chainId: 8453,
@@ -46,7 +43,6 @@ const networks = {
     explorerUrl: "https://basescan.org",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 8453,
-    apiUrl: "https://api.paraswap.io",
   },
   ethereum: {
     chainId: 1,
@@ -55,7 +51,6 @@ const networks = {
     explorerUrl: "https://etherscan.io",
     nativeCurrency: { symbol: "ETH", decimals: 18 },
     networkId: 1,
-    apiUrl: "https://api.paraswap.io",
   },
   bnb: {
     chainId: 56,
@@ -64,7 +59,6 @@ const networks = {
     explorerUrl: "https://bscscan.com",
     nativeCurrency: { symbol: "BNB", decimals: 18 },
     networkId: 56,
-    apiUrl: "https://api.paraswap.io",
   },
 };
 
@@ -159,7 +153,7 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
-// استایل‌های کامپوننت‌ها
+// استایل‌های کامپوننت‌ها (بدون تغییر)
 const AppContainer = styled.div`
   margin: 0;
   padding: 0;
@@ -734,64 +728,97 @@ const switchNetwork = async (networkKey, provider) => {
   }
 };
 
-const createSwapper = (networkId) => {
-  if (!networkId) {
-    console.error("Network ID is undefined");
-    return null;
+const fetchTokenBalance = async (tokenSymbol, userAddress) => {
+  if (typeof window === "undefined" || !userAddress || !provider || !tokenSymbol) {
+    console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
+    return "0";
   }
-  const networkKey = Object.keys(networks).find((key) => networks[key].networkId === networkId);
-  if (!networkKey) {
-    console.error(`Network ID ${networkId} is not supported`);
-    return null;
-  }
-  try {
-    return constructSimpleSDK({
-      chainId: networkId,
-      apiURL: networks[networkKey].apiUrl,
-      fetcher: axios,
-    });
-  } catch (error) {
-    console.error("Failed to initialize Paraswap SDK:", error.message);
-    return null;
-  }
-};
-
-const fetchTokenPrice = async (tokenSymbol, currentNetwork) => {
-  if (typeof window === "undefined") return 0;
   try {
     const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
     if (!tokenAddress) {
       console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
-      return 0;
+      return "0";
     }
 
-    const usdcAddress = tokenAddresses[currentNetwork]?.["USDC"] || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    let balance;
+    if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
+      balance = await provider.getBalance(userAddress);
+    } else {
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+      balance = await tokenContract.balanceOf(userAddress);
+    }
+
     const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
-    const amountInUnits = ethers.utils.parseUnits("1", decimals).toString();
-
-    const paraswap = createSwapper(networks[currentNetwork]?.networkId);
-    if (!paraswap) {
-      console.warn(`Paraswap SDK could not be initialized for network ${currentNetwork}`);
-      return 0;
-    }
-
-    const priceRoute = await paraswap.swap.getRate({
-      srcToken: tokenAddress,
-      destToken: usdcAddress,
-      amount: amountInUnits,
-      side: SwapSide.SELL,
-    });
-
-    if (!priceRoute || !priceRoute.destAmount) {
-      throw new Error("Invalid response from Paraswap API");
-    }
-
-    return Number(priceRoute.destAmount) / 1e6; // USDC has 6 decimals
+    return ethers.utils.formatUnits(balance, decimals);
   } catch (error) {
-    console.error(`Error fetching price for ${tokenSymbol} on ${currentNetwork}:`, error.message);
-    return 0;
+    console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error.message);
+    return "0";
   }
 };
+
+const fetchBestRate = async (signal) => {
+  if (typeof window === "undefined" || isInitialLoad) return;
+  try {
+    if (!isConnected || !address || !provider) {
+      setAmountTo("");
+      setBestDex(t("invalid_amount") || "Invalid Amount");
+      setPriceRoute(null);
+      setUsdEquivalent("");
+      setSwapNotification({ message: t("invalid_amount") || "Invalid Amount", isSuccess: false });
+      setTimeout(() => setSwapNotification(null), 3000);
+      return;
+    }
+
+    const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
+    const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
+    if (!sellTokenAddress || !buyTokenAddress) {
+      console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
+      setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
+      setIsNotificationVisible(true);
+      setTimeout(() => setIsNotificationVisible(false), 3000);
+      return;
+    }
+
+    setIsPriceRouteReady(false);
+    const decimalsFrom = tokenDecimals[currentNetwork]?.[tokenFrom] || 18;
+    const decimalsTo = tokenDecimals[currentNetwork]?.[tokenTo] || 18;
+    const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom);
+    if (Number(amountFrom) <= 0) {
+      setAmountTo("");
+      setBestDex(t("invalid_amount") || "Invalid Amount");
+      setPriceRoute(null);
+      setUsdEquivalent("");
+      return;
+    }
+
+    const bestRate = await findBestRate(currentNetwork, sellTokenAddress, buyTokenAddress, sellAmountFormatted, decimalsTo);
+    if (!bestRate || !bestRate.amountOut) {
+      throw new Error("No routes found with enough liquidity");
+    }
+
+    setPriceRoute(bestRate);
+    setAmountTo(bestRate.amountOut);
+    setBestDex(bestRate.dex);
+    setIsPriceRouteReady(true);
+
+    // برای سادگی، usdEquivalent رو غیرفعال می‌کنیم چون Paraswap حذف شده
+    setUsdEquivalent("N/A");
+
+    // تخمین گس (برای سادگی، یه مقدار ثابت فرض می‌کنیم)
+    setGasEstimate({ gwei: "200000", usd: "N/A" });
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    console.error("Error fetching rate:", error.message);
+    setAmountTo("");
+    setBestDex(t("price_route_not_ready") || "Price Route Not Ready");
+    setPriceRoute(null);
+    setUsdEquivalent("N/A");
+    setSwapNotification({ message: error.message || t("price_route_not_ready") || "Price Route Not Ready", isSuccess: false });
+    setTimeout(() => setSwapNotification(null), 3000);
+  }
+};
+
+const debouncedFetchBestRate = debounce(fetchBestRate, 500);
 
 function Swap() {
   const { t, i18n } = useTranslation();
@@ -824,128 +851,6 @@ function Swap() {
   const [gasEstimate, setGasEstimate] = useState({ gwei: "0", usd: "N/A" });
   const [searchTokenAddress, setSearchTokenAddress] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-
-  const fetchTokenBalance = async (tokenSymbol, userAddress) => {
-    if (typeof window === "undefined" || !userAddress || !provider || !tokenSymbol) {
-      console.warn("Missing parameters for fetchTokenBalance:", { userAddress, provider, tokenSymbol });
-      return "0";
-    }
-    try {
-      const tokenAddress = tokenAddresses[currentNetwork]?.[tokenSymbol];
-      if (!tokenAddress) {
-        console.warn(`Token address for ${tokenSymbol} not found in network ${currentNetwork}`);
-        return "0";
-      }
-
-      let balance;
-      if (tokenAddress === "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-        balance = await provider.getBalance(userAddress);
-      } else {
-        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-        balance = await tokenContract.balanceOf(userAddress);
-      }
-
-      const decimals = tokenDecimals[currentNetwork]?.[tokenSymbol] || 18;
-      return ethers.utils.formatUnits(balance, decimals);
-    } catch (error) {
-      console.error(`Error fetching balance for ${tokenSymbol} on ${currentNetwork}:`, error.message);
-      return "0";
-    }
-  };
-
-  const fetchBestRate = async (signal) => {
-    if (typeof window === "undefined" || isInitialLoad) return;
-    try {
-      if (!isConnected || !address || !provider) {
-        setAmountTo("");
-        setBestDex(t("invalid_amount") || "Invalid Amount");
-        setPriceRoute(null);
-        setUsdEquivalent("");
-        setSwapNotification({ message: t("invalid_amount") || "Invalid Amount", isSuccess: false });
-        setTimeout(() => setSwapNotification(null), 3000);
-        return;
-      }
-
-      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
-      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
-      if (!sellTokenAddress || !buyTokenAddress) {
-        console.error(`Token addresses not found for ${tokenFrom} or ${tokenTo} on ${currentNetwork}`);
-        setErrorMessage(t("invalid_contract_address") || "Invalid Contract Address");
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      setIsPriceRouteReady(false);
-      const decimalsFrom = tokenDecimals[currentNetwork]?.[tokenFrom] || 18;
-      const sellAmountFormatted = ethers.utils.parseUnits(amountFrom || "0", decimalsFrom).toString();
-      if (Number(amountFrom) <= 0) {
-        setAmountTo("");
-        setBestDex(t("invalid_amount") || "Invalid Amount");
-        setPriceRoute(null);
-        setUsdEquivalent("");
-        return;
-      }
-
-      const paraswap = createSwapper(networks[currentNetwork]?.networkId);
-      if (!paraswap) {
-        setErrorMessage(
-          t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }) ||
-          "Network not supported"
-        );
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      const priceRoute = await paraswap.swap.getRate({
-        srcToken: sellTokenAddress,
-        destToken: buyTokenAddress,
-        srcDecimals: tokenDecimals[currentNetwork][tokenFrom], 
-        destDecimals: tokenDecimals[currentNetwork][tokenTo],  
-        amount: sellAmountFormatted,
-        side: SwapSide.SELL,
-        userAddress: address,
-        slippage: Number(slippage) || 1,
-      });
-
-      if (!priceRoute || !priceRoute.destAmount) {
-        throw new Error("No routes found with enough liquidity");
-      }
-
-      setPriceRoute(priceRoute);
-      const decimalsTo = tokenDecimals[currentNetwork]?.[tokenTo] || 18;
-      const formattedAmountTo = ethers.utils.formatUnits(priceRoute.destAmount, decimalsTo);
-      setAmountTo(formattedAmountTo);
-      setBestDex("Paraswap");
-      setIsPriceRouteReady(true);
-
-      const toPriceInUSDC = await fetchTokenPrice(tokenTo, currentNetwork);
-      if (toPriceInUSDC > 0) {
-        const amountToBN = ethers.utils.parseUnits(formattedAmountTo, decimalsTo);
-        const usdValueBN = amountToBN.mul(Math.round(toPriceInUSDC * 1e6)).div(1e6);
-        const usdValue = ethers.utils.formatUnits(usdValueBN, decimalsTo);
-        setUsdEquivalent(`≈ $${Number(usdValue).toFixed(2)} USD`);
-      } else {
-        setUsdEquivalent("Price unavailable");
-      }
-
-      const gasEstimateValue = priceRoute.estimatedGas || "200000";
-      const gasInGwei = ethers.utils.formatUnits(gasEstimateValue, "gwei");
-      setGasEstimate({ gwei: gasInGwei, usd: "N/A" });
-    } catch (error) {
-      if (error.name === "AbortError") return;
-      console.error("Error fetching rate:", error.message);
-      setAmountTo("");
-      setBestDex(t("price_route_not_ready") || "Price Route Not Ready");
-      setPriceRoute(null);
-      setUsdEquivalent("N/A");
-      setSwapNotification({ message: error.message || t("price_route_not_ready") || "Price Route Not Ready", isSuccess: false });
-      setTimeout(() => setSwapNotification(null), 3000);
-    }
-  };
-
-  const debouncedFetchBestRate = debounce(fetchBestRate, 500);
 
   const handleSwapTokens = () => {
     setTokenFrom(tokenTo);
@@ -1107,67 +1012,10 @@ function Swap() {
       }
 
       setIsSwapping(true);
-      const sellTokenAddress = tokenAddresses[currentNetwork]?.[tokenFrom];
-      const buyTokenAddress = tokenAddresses[currentNetwork]?.[tokenTo];
-      const amountIn = ethers.utils.parseUnits(amountFrom, tokenDecimals[currentNetwork]?.[tokenFrom] || 18);
-      const minAmount = ethers.utils
-        .parseUnits(amountTo, tokenDecimals[currentNetwork]?.[tokenTo] || 18)
-        .mul(100 - Number(slippage))
-        .div(100);
-
-      const paraswap = createSwapper(networks[currentNetwork]?.networkId);
-      if (!paraswap) {
-        setErrorMessage(
-          t("network_not_supported", { networks: Object.values(networks).map(n => n.name).join(", ") }) ||
-          "Network not supported"
-        );
-        setIsNotificationVisible(true);
-        setTimeout(() => setIsNotificationVisible(false), 3000);
-        return;
-      }
-
-      const transactionRequest = await paraswap.swap.buildTx({
-        srcToken: sellTokenAddress,
-        destToken: buyTokenAddress,
-        srcAmount: amountIn.toString(),
-        destAmount: minAmount.toString(),
-        priceRoute,
-        userAddress: address,
-        partner: "your_partner_name",
-      });
-
-      if (sellTokenAddress !== "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE") {
-        setSwapNotification({ message: t("approving_token") || "Approving Token", isSuccess: false });
-        const tokenContract = new ethers.Contract(sellTokenAddress, ERC20_ABI, signer);
-        const allowance = await tokenContract.allowance(address, transactionRequest.to);
-        if (allowance.lt(amountIn)) {
-          const approveTx = await tokenContract.approve(transactionRequest.to, amountIn);
-          await approveTx.wait();
-          setSwapNotification({ message: t("token_approved") || "Token Approved", isSuccess: true });
-          setTimeout(() => setSwapNotification(null), 3000);
-        }
-      }
-
-      const tx = {
-        to: transactionRequest.to,
-        data: transactionRequest.data,
-        value: transactionRequest.value,
-        gasPrice: transactionRequest.gasPrice,
-        gas: transactionRequest.estimatedGas,
-      };
-
-      const receipt = await signer.sendTransaction(tx);
-      await receipt.wait();
-      setSwapNotification({ message: t("swap_successful", { hash: receipt.transactionHash }) || `Swap Successful: ${receipt.transactionHash}`, isSuccess: true });
+      setSwapNotification({ message: t("swap_not_implemented") || "Swap functionality not implemented yet", isSuccess: false });
     } catch (error) {
       console.error("Swap error:", error.message);
-      if (error.code === 4001) {
-        setSwapNotification({ message: t("transaction_rejected") || "Transaction Rejected", isSuccess: false });
-      } else if (error.code === "INSUFFICIENT_FUNDS") {
-        setSwapNotification({ message: t("insufficient_funds") || "Insufficient Funds", isSuccess: false });
-      } else {
-        setSwapNotification({ message: t("swap_failed", { error: error.message }) || `Swap Failed: ${error.message}`, isSuccess: false });
-      }
+      setSwapNotification({ message: t("swap_failed", { error: error.message }) || `Swap Failed: ${error.message}`, isSuccess: false });
     } finally {
       setIsSwapping(false);
       setTimeout(() => setSwapNotification(null), 5000);
@@ -1449,7 +1297,7 @@ function Swap() {
       <SwapAnimation isSwapping={isSwapping} hasError={!!swapNotification && !swapNotification.isSuccess} />
       <Footer>
         <FooterText>
-          {t("powered_by") || "Powered by"} <FooterLink href="https://paraswap.io/" target="_blank">Paraswap</FooterLink>
+          {t("powered_by") || "Powered by"} Custom Dex Aggregator
         </FooterText>
       </Footer>
     </AppContainer>
