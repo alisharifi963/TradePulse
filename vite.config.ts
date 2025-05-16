@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
-      external: ["ethers"], // برای جلوگیری از باندل کردن ethers
+      external: ["ethers"], 
     },
   },
 });
