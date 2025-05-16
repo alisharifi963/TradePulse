@@ -8,4 +8,7 @@ export default defineConfig({
       external: ["ethers"], 
     },
   },
+  optimizeDeps: {
+    include: ["ethers"], 
+  },
 });
