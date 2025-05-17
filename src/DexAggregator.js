@@ -13,7 +13,7 @@ const quoterAddresses = {
   uniswap: {
     base: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76",
     ethereum: "0x61fFE014bA17989E743c5F6cB21bF9697530B21",
-    arbitrum: "0x61fFE014bA17989E743c5F6cB21bF9697530B21",
+    arbitrum: "0x1F8c9623aD0C2e63cDBeC0EeBEd2BaF54d2dA3D",
   },
   pancakeswap: {
     bnb: "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
