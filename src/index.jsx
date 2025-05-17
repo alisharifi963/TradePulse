@@ -1,4 +1,5 @@
 import { StrictMode } from "react";
+import { ethers } from "ethers";
 import { createRoot } from "react-dom/client";
 import './i18n';
 import App from "./App";
