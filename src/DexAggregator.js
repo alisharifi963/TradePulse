@@ -11,9 +11,9 @@ const providers = {
 // آدرس قراردادهای Quoter
 const quoterAddresses = {
   uniswap: {
-    base: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76",
-    ethereum: "0x61fFE014bA17989E743c5F6cB21bF9697530B21",
-    arbitrum: "0x1F8c9623aD0C2e63cDBeC0EeBEd2BaF54d2dA3D",
+    base: "0x61ffe014ba17989e743c5f6cb21bf9697530b21e",
+    ethereum: "0x61ffe014ba17989e743c5f6cb21bf9697530b21e",
+    arbitrum: "0x61ffe014ba17989e743c5f6cb21bf9697530b21e",
   },
   pancakeswap: {
     bnb: "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
@@ -27,7 +27,12 @@ const QUOTER_ABI = [
 async function getUniswapRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
   if (!["base", "ethereum", "arbitrum"].includes(network)) return null;
   const provider = providers[network];
-  const quoterContract = new ethers.Contract(quoterAddresses.uniswap[network], QUOTER_ABI, provider);
+  const quoterAddress = quoterAddresses.uniswap[network];
+  if (!quoterAddress || quoterAddress.length !== 42) {
+    console.error(`Uniswap quoter address invalid for ${network}`);
+    return null;
+  }
+  const quoterContract = new ethers.Contract(quoterAddress, QUOTER_ABI, provider);
   const fee = 3000; // 0.3%
   try {
     const amountOut = await quoterContract.quoteExactInputSingle(tokenIn, tokenOut, fee, amountIn, 0);
@@ -41,7 +46,12 @@ async function getUniswapRate(network, tokenIn, tokenOut, amountIn, decimalsTo) 
 async function getPancakeSwapRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
   if (network !== "bnb") return null;
   const provider = providers[network];
-  const quoterContract = new ethers.Contract(quoterAddresses.pancakeswap[network], QUOTER_ABI, provider);
+  const quoterAddress = quoterAddresses.pancakeswap[network];
+  if (!quoterAddress || quoterAddress.length !== 42) {
+    console.error(`PancakeSwap quoter address invalid for ${network}`);
+    return null;
+  }
+  const quoterContract = new ethers.Contract(quoterAddress, QUOTER_ABI, provider);
   const fee = 2500; // 0.25%
   try {
     const amountOut = await quoterContract.quoteExactInputSingle(tokenIn, tokenOut, fee, amountIn, 0);
@@ -60,8 +70,12 @@ async function getCurveRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
   const provider = providers[network];
   const poolAddress =
     network === "ethereum"
-      ? "0x960ea3e3C7FB317332d990873d354E18d764559"
-      : "0xC9B8a3FDECB9D5a63354D2262Ee2e2e2e2e2e2e";
+    ? "0x960ea3e3c7fb317332d990873d354e18d7645590"
+      : "0xc9b8a3fdecb9d5a63354d2262ee2e2e2e2e2e2e0";
+  if (!poolAddress || poolAddress.length !== 42) {
+    console.error(`Curve pool address invalid for ${network}`);
+    return null;
+  }
   const poolContract = new ethers.Contract(poolAddress, CURVE_POOL_ABI, provider);
   try {
     const amountOut = await poolContract.get_dy(0, 1, amountIn);
