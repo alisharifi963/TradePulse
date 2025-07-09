@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 
+
 function getRpcUrl(network) {
   const infuraKey =
     import.meta?.env?.VITE_INFURA_API_KEY || process.env.INFURA_API_KEY || "";
