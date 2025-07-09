@@ -116,7 +116,7 @@ async function getCurveRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
   }
 }
 
-export async function findBestRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
+ async function findBestRate(network, tokenIn, tokenOut, amountIn, decimalsTo) {
   const rates = [];
   const errors = [];
 
@@ -158,3 +158,5 @@ const msg = errors.join(" | ") || "No rates found from any DEX";
   rates.sort((a, b) => Number(b.amountOut) - Number(a.amountOut));
   return rates[0];
 }
+
+export default findBestRate;
