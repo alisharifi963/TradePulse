@@ -1,6 +1,5 @@
 import { ethers } from "ethers"; 
 
-// RPCهای شبکه‌ها
 const providers = {
   base: new ethers.providers.JsonRpcProvider("https://mainnet.base.org"),
   ethereum: new ethers.providers.JsonRpcProvider(`https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`),
