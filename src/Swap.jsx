@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
-import findBestRate from "./DexAggregator";
+import { findBestRate } from "./DexAggregator";
+
 
 // استایل‌های سراسری
 const GlobalStyle = createGlobalStyle`
