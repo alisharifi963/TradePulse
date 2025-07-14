@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 
 const providers = {
   base: new ethers.providers.JsonRpcProvider("https://mainnet.base.org"),
-  ethereum: new ethers.providers.JsonRpcProvider(`https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`),
+  ethereum: new ethers.providers.JsonRpcProvider(`https://mainnet.infura.io/v3/${import.meta.env.VITE_INFURA_API_KEY}`),
   arbitrum: new ethers.providers.JsonRpcProvider("https://arb1.arbitrum.io/rpc"),
   bnb: new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org/"),
 };
